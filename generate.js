@@ -46,7 +46,7 @@ async function summarize(newsTitles) {
             text: `
 以下のニュースから株に影響が大きいものを3つ選び、日本語で要約してください。
 
-必ずJSON配列で出力:
+必ずJSONのみで出力してください（説明文は禁止）:
 [
  {"title":"","summary":"","importance":0.9}
 ]
@@ -61,18 +61,42 @@ ${newsTitles.join("\n")}
   );
 
   const json = await res.json();
-  console.log("Gemini:", JSON.stringify(json));
 
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // ▼ログ（重要）
+  console.log("Gemini raw:", JSON.stringify(json));
 
-  if (!text) return [];
+  let text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  const match = text.match(/\[.*\]/s);
-  if (!match) return [];
+  if (!text) {
+    console.error("Gemini text empty");
+    return [];
+  }
+
+  // ▼余計な装飾除去
+  text = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  // ▼JSON配列だけ抽出
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+
+  if (start === -1 || end === -1) {
+    console.error("JSON not found:", text);
+    return [];
+  }
+
+  const jsonStr = text.substring(start, end + 1);
 
   try {
-    return JSON.parse(match[0]);
-  } catch {
+    const parsed = JSON.parse(jsonStr);
+
+    // ▼最大3件制限（AIが暴走した場合対策）
+    return parsed.slice(0, 3);
+
+  } catch (e) {
+    console.error("JSON parse error:", jsonStr);
     return [];
   }
 }
@@ -84,10 +108,17 @@ async function main() {
   const nikkei = await getNikkei();
   const selected = await summarize(news);
 
+  // ▼フェイルセーフ（AI失敗時）
+  const fallback = news.slice(0, 3).map(t => ({
+    title: t,
+    summary: "",
+    importance: 0.5
+  }));
+
   const data = {
     date,
     nikkei,
-    news: selected
+    news: selected.length > 0 ? selected : fallback
   };
 
   fs.mkdirSync("./data", { recursive: true });
