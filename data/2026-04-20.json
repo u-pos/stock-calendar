@@ -4,5 +4,21 @@
     "close": 58476,
     "change_pct": -1.75
   },
-  "news": []
+  "news": [
+    {
+      "title": "Going Portaling: Jack Karasinski",
+      "summary": "",
+      "importance": 0.5
+    },
+    {
+      "title": "A look at prospects for all 3 days of the NFL Draft",
+      "summary": "",
+      "importance": 0.5
+    },
+    {
+      "title": "JinkoSolar Officially Launches \"Light Diamond\" Lightweight, High-Strength Module",
+      "summary": "",
+      "importance": 0.5
+    }
+  ]
 }
