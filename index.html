@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>株イベントカレンダー</title>
+<style>
+body { margin:0; font-family:sans-serif; }
+.header {
+  display:flex; justify-content:space-between; padding:10px;
+  background:#222; color:#fff;
+}
+.grid {
+  display:grid;
+  grid-template-columns: repeat(7,1fr);
+  height:calc(100vh - 60px);
+}
+.cell {
+  border:1px solid #ccc;
+  padding:5px;
+  overflow:hidden;
+  font-size:12px;
+}
+.date { font-weight:bold; }
+.up { color:#0a0; }
+.down { color:#c00; }
+ul { padding-left:12px; margin:3px 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button onclick="prev()">←</button>
+  <div id="title"></div>
+  <button onclick="next()">→</button>
+</div>
+
+<div id="grid" class="grid"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
