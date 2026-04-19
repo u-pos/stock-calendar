@@ -26,23 +26,20 @@ function dedupeTitles(titles) {
   });
 }
 
-/* ニュース取得（超重要：質を強制） */
+/* ニュース取得（精度重視） */
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(inflation OR Fed OR interest rate OR CPI OR recession OR central bank OR geopolitics OR oil OR war)",
+      q: "(inflation OR Fed OR interest rate OR CPI OR recession OR central bank OR oil OR war)",
       language: "en",
       sortBy: "publishedAt",
       pageSize: 50,
       apiKey: process.env.NEWS_API_KEY,
-
-      // ▼ここが最重要（質の担保）
       domains: "bloomberg.com,reuters.com,wsj.com,cnbc.com"
     }
   });
 
   const titles = res.data.articles.map(a => a.title);
-
   return dedupeTitles(titles);
 }
 
@@ -61,6 +58,26 @@ async function getNikkei() {
   };
 }
 
+/* ▼キーワードで最低限フィルタ（重要） */
+function filterImportant(news) {
+  const keywords = [
+    "inflation",
+    "fed",
+    "interest",
+    "rate",
+    "cpi",
+    "recession",
+    "war",
+    "oil",
+    "central bank",
+    "geopolitics"
+  ];
+
+  return news.filter(n =>
+    keywords.some(k => n.toLowerCase().includes(k))
+  );
+}
+
 /* Gemini */
 async function summarize(newsTitles) {
   const res = await fetch(
@@ -72,12 +89,7 @@ async function summarize(newsTitles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「株価に直接影響するマクロ要因のみ」を3つ選べ。
-
-ルール:
-- 金利・インフレ・中央銀行・戦争・エネルギーのみ対象
-- エンタメ・レビュー・ランキングは禁止
-- 同じ内容は1つに統合
+以下のニュースから株価に影響が大きいものを最大3つ選び、日本語で要約してください。
 
 JSONのみで出力:
 [
@@ -109,10 +121,8 @@ ${newsTitles.join("\n")}
 
   if (start === -1 || end === -1) return [];
 
-  const jsonStr = text.substring(start, end + 1);
-
   try {
-    return JSON.parse(jsonStr).slice(0, 3);
+    return JSON.parse(text.substring(start, end + 1)).slice(0, 3);
   } catch {
     return [];
   }
@@ -122,13 +132,18 @@ ${newsTitles.join("\n")}
 async function main() {
   const date = getDateJST();
 
-  const news = await getNews();
+  let news = await getNews();
+
+  // ▼ここが重要（AIに渡す前に絞る）
+  news = filterImportant(news);
+
   const nikkei = await getNikkei();
   const selected = await summarize(news);
 
+  // ▼ fallback改善版（ここが効く）
   const fallback = news.slice(0, 3).map(t => ({
     title: t,
-    summary: "",
+    summary: "（要約なし）",
     importance: 0.5
   }));
 
