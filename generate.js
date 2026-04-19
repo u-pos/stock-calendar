@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "fs";
 
 /* =========================
-   JST日付 & 15:30固定
+   JST日付
 ========================= */
 function getDateJST() {
   const now = new Date();
@@ -10,47 +10,26 @@ function getDateJST() {
   return jst.toISOString().split("T")[0];
 }
 
-function getToTimeISO() {
-  const now = new Date();
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-  // 今日の15:30 JST
-  jst.setHours(15, 30, 0, 0);
-
-  return jst.toISOString();
-}
-
 /* =========================
-   ニュース取得（Reuters日本語）
+   nikkei225jp取得
 ========================= */
 async function getNews() {
-  const res = await axios.get("https://newsapi.org/v2/everything", {
-    params: {
-      q: "株 OR 金利 OR インフレ OR 日銀 OR FRB OR 原油 OR 戦争",
-      language: "ja",
-      sortBy: "publishedAt",
-      pageSize: 50,
-      apiKey: process.env.NEWS_API_KEY,
-      domains: "jp.reuters.com",
-      to: getToTimeISO()
-    }
-  });
+  try {
+    const res = await axios.get("https://nikkei225jp.com/news/");
+    const html = res.data;
 
-  return res.data.articles.map(a => a.title);
-}
+    const matches = [...html.matchAll(/<a href="\/news\/.*?">(.*?)<\/a>/g)];
 
-/* =========================
-   重要候補抽出（ルール）
-========================= */
-function filterImportant(news) {
-  const keywords = [
-    "日銀","FRB","金利","インフレ","CPI",
-    "戦争","原油","市場","株","経済"
-  ];
+    const titles = matches.map(m =>
+      m[1].replace(/<[^>]+>/g, "").trim()
+    );
 
-  return news.filter(n =>
-    keywords.some(k => n.includes(k))
-  );
+    return titles.slice(0, 30);
+
+  } catch (e) {
+    console.log("取得失敗");
+    return [];
+  }
 }
 
 /* =========================
@@ -58,21 +37,17 @@ function filterImportant(news) {
 ========================= */
 function dedupe(news) {
   const seen = new Set();
-  const result = [];
 
-  for (let t of news) {
-    const key = t.slice(0, 25);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(t);
-    }
-  }
-
-  return result;
+  return news.filter(t => {
+    const key = t.slice(0, 30);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /* =========================
-   AIで3つ選ぶ（重要）
+   AIで3つ選ぶ
 ========================= */
 async function pickTop3(news) {
   if (news.length === 0) return [];
@@ -87,12 +62,13 @@ async function pickTop3(news) {
           contents: [{
             parts: [{
               text: `
-以下のニュースから「株価に最も影響が大きいもの」を3つ選べ。
+以下のニュースから「日経平均に影響が大きいもの」を3つ選べ。
 
 ルール:
-- 金利・インフレ・中央銀行・戦争を優先
-- 同じ内容は1つにする
-- 出力は番号だけ（例: 1,3,5）
+- 金利・インフレ・日銀・戦争・原油・トランプ氏の発言・その他要人発言を優先
+- 同じ内容は1つとしてカウントする
+
+番号だけ答えろ（例: 1,3,5）
 
 ニュース:
 ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
@@ -136,14 +112,14 @@ async function main() {
   const date = getDateJST();
 
   let news = await getNews();
-  news = filterImportant(news);
-  news = dedupe(news).slice(0, 10);
+
+  news = dedupe(news).slice(0, 15);
 
   const picked = await pickTop3(news);
 
   const nikkei = await getNikkei();
 
-  const fallback = news.slice(0,3);
+  const fallback = news.slice(0, 3);
 
   const finalNews = (picked.length > 0 ? picked : fallback).map(t => ({
     title: t,
