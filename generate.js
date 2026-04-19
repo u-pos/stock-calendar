@@ -49,7 +49,14 @@ async function summarize(newsTitles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから株に影響が大きいものを3つ選び、日本語で要約しJSONで出力:
+以下のニュースから株に影響が大きいものを3つ選び、日本語で要約してください。
+
+必ずJSON配列で返す:
+[
+ {"title":"","summary":"","importance":0.9}
+]
+
+ニュース:
 ${newsTitles.join("\n")}
 `
           }]
@@ -59,11 +66,30 @@ ${newsTitles.join("\n")}
   );
 
   const json = await res.json();
-  const text = json.candidates[0].content.parts[0].text;
+
+  // ▼ここ重要（まずログ）
+  console.log("Gemini response:", JSON.stringify(json));
+
+  // ▼安全に取り出す
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    console.error("Geminiレスポンス異常");
+    return [];
+  }
+
+  // JSON抽出
+  const match = text.match(/\[.*\]/s);
+
+  if (!match) {
+    console.error("JSON抽出失敗:", text);
+    return [];
+  }
 
   try {
-    return JSON.parse(text);
-  } catch {
+    return JSON.parse(match[0]);
+  } catch (e) {
+    console.error("JSONパース失敗:", match[0]);
     return [];
   }
 }
