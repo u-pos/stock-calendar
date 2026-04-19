@@ -1,10 +1,5 @@
 import axios from "axios";
 import fs from "fs";
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 function getDateJST() {
   const now = new Date();
@@ -15,10 +10,10 @@ function getDateJST() {
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "economy OR inflation OR Fed OR war OR interest rate OR central bank",
+      q: "economy OR inflation OR Fed OR war OR interest rate",
       language: "en",
       sortBy: "publishedAt",
-      pageSize: 40,
+      pageSize: 30,
       apiKey: process.env.NEWS_API_KEY
     }
   });
@@ -51,7 +46,7 @@ async function summarize(newsTitles) {
             text: `
 以下のニュースから株に影響が大きいものを3つ選び、日本語で要約してください。
 
-必ずJSON配列で返す:
+必ずJSON配列で出力:
 [
  {"title":"","summary":"","importance":0.9}
 ]
@@ -66,33 +61,22 @@ ${newsTitles.join("\n")}
   );
 
   const json = await res.json();
+  console.log("Gemini:", JSON.stringify(json));
 
-  // ▼ここ重要（まずログ）
-  console.log("Gemini response:", JSON.stringify(json));
-
-  // ▼安全に取り出す
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  if (!text) {
-    console.error("Geminiレスポンス異常");
-    return [];
-  }
+  if (!text) return [];
 
-  // JSON抽出
   const match = text.match(/\[.*\]/s);
-
-  if (!match) {
-    console.error("JSON抽出失敗:", text);
-    return [];
-  }
+  if (!match) return [];
 
   try {
     return JSON.parse(match[0]);
-  } catch (e) {
-    console.error("JSONパース失敗:", match[0]);
+  } catch {
     return [];
   }
 }
+
 async function main() {
   const date = getDateJST();
 
