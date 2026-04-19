@@ -3,43 +3,81 @@
 <head>
 <meta charset="UTF-8">
 <title>株イベントカレンダー</title>
+
 <style>
-.header {
-  background:#eee;
-  font-weight:bold;
-  text-align:center;
+body {
+  margin:0;
+  font-family:sans-serif;
 }
-body { margin:0; font-family:sans-serif; }
-.header {
-  display:flex; justify-content:space-between; padding:10px;
-  background:#222; color:#fff;
+
+/* ヘッダー */
+.header-bar {
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:#222;
+  color:#fff;
 }
+
+/* グリッド */
 .grid {
   display:grid;
-  grid-template-columns: repeat(7,1fr);
+  grid-template-columns: repeat(7, 1fr);
   height:calc(100vh - 60px);
 }
+
+/* セル */
 .cell {
   border:1px solid #ccc;
-  padding:5px;
-  overflow:hidden;
+  padding:4px;
   font-size:12px;
+  overflow:hidden;
 }
-.date { font-weight:bold; }
-.up { color:#0a0; }
-.down { color:#c00; }
-ul { padding-left:12px; margin:3px 0; }
+
+/* 日付 */
+.date {
+  font-weight:bold;
+}
+
+/* 日経表示 */
+.nikkei {
+  font-size:11px;
+}
+
+/* 上げ下げ */
+.up { color:green; }
+.down { color:red; }
+
+/* 曜日ヘッダー */
+.header {
+  font-size:11px;
+  text-align:center;
+  padding:2px 0;
+  font-weight:bold;
+}
+
+/* 曜日色 */
+.sun { background:#ffdddd; }
+.sat { background:#dde5ff; }
+.week { background:#eeeeee; }
+
+ul {
+  padding-left:12px;
+  margin:2px 0;
+}
 </style>
 </head>
+
 <body>
 
-<div class="header">
+<div class="header-bar">
   <button onclick="prev()">←</button>
   <div id="title"></div>
   <button onclick="next()">→</button>
 </div>
 
 <div id="grid" class="grid"></div>
+
 <script type="module" src="script.js"></script>
 </body>
 </html>
