@@ -1,14 +1,18 @@
 import axios from "axios";
 import fs from "fs";
 
-/* JST日付 */
+/* =========================
+   日付（JST）
+========================= */
 function getDateJST() {
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return jst.toISOString().split("T")[0];
 }
 
-/* 重複削除 */
+/* =========================
+   タイトル重複削除
+========================= */
 function dedupeTitles(titles) {
   const seen = new Set();
 
@@ -26,7 +30,9 @@ function dedupeTitles(titles) {
   });
 }
 
-/* ニュース取得（精度重視） */
+/* =========================
+   ニュース取得（質重視）
+========================= */
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
@@ -43,7 +49,9 @@ async function getNews() {
   return dedupeTitles(titles);
 }
 
-/* 日経 */
+/* =========================
+   日経平均取得
+========================= */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
   const meta = res.data.chart.result[0].meta;
@@ -58,7 +66,9 @@ async function getNikkei() {
   };
 }
 
-/* ▼キーワードで最低限フィルタ（重要） */
+/* =========================
+   重要ニュースだけ抽出（AI前処理）
+========================= */
 function filterImportant(news) {
   const keywords = [
     "inflation",
@@ -78,20 +88,27 @@ function filterImportant(news) {
   );
 }
 
-/* Gemini */
+/* =========================
+   Gemini要約
+========================= */
 async function summarize(newsTitles) {
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `
+  try {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `
 以下のニュースから株価に影響が大きいものを最大3つ選び、日本語で要約してください。
 
-JSONのみで出力:
+条件:
+- 金利・インフレ・中央銀行・戦争・エネルギーのみ対象
+- 同じ内容は1つに統合
+- 必ずJSONのみで出力
+
 [
  {"title":"","summary":"","importance":0.9}
 ]
@@ -99,48 +116,56 @@ JSONのみで出力:
 ニュース:
 ${newsTitles.join("\n")}
 `
+            }]
           }]
-        }]
-      })
-    }
-  );
+        })
+      }
+    );
 
-  const json = await res.json();
+    const json = await res.json();
 
-  let text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  if (!text) return [];
+    if (!text) return [];
 
-  text = text
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+    text = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
 
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
 
-  if (start === -1 || end === -1) return [];
+    if (start === -1 || end === -1) return [];
 
-  try {
-    return JSON.parse(text.substring(start, end + 1)).slice(0, 3);
-  } catch {
+    const parsed = JSON.parse(text.substring(start, end + 1));
+
+    return parsed.slice(0, 3);
+
+  } catch (e) {
+    console.error("Gemini error:", e);
     return [];
   }
 }
 
-/* メイン */
+/* =========================
+   メイン処理
+========================= */
 async function main() {
   const date = getDateJST();
 
   let news = await getNews();
 
-  // ▼ここが重要（AIに渡す前に絞る）
+  // ▼重要ニュースだけに絞る
   news = filterImportant(news);
+
+  // ▼AIに渡す量を制限（重要）
+  news = news.slice(0, 10);
 
   const nikkei = await getNikkei();
   const selected = await summarize(news);
 
-  // ▼ fallback改善版（ここが効く）
+  // ▼fallback（AI失敗時）
   const fallback = news.slice(0, 3).map(t => ({
     title: t,
     summary: "（要約なし）",
