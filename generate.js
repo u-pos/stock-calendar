@@ -11,32 +11,12 @@ function getDateJST() {
 }
 
 /* =========================
-   タイトル重複削除
-========================= */
-function dedupeTitles(titles) {
-  const seen = new Set();
-
-  return titles.filter(t => {
-    const key = t
-      .toLowerCase()
-      .replace(/[^\w\s]/g, "")
-      .split(" ")
-      .slice(0, 8)
-      .join(" ");
-
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-/* =========================
-   ニュース取得（質重視）
+   ニュース取得
 ========================= */
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(inflation OR Fed OR interest rate OR CPI OR recession OR central bank OR oil OR war)",
+      q: "(inflation OR CPI OR Fed OR interest rate OR central bank OR war OR semiconductor OR Trump OR Powell)",
       language: "en",
       sortBy: "publishedAt",
       pageSize: 50,
@@ -45,12 +25,51 @@ async function getNews() {
     }
   });
 
-  const titles = res.data.articles.map(a => a.title);
-  return dedupeTitles(titles);
+  return res.data.articles.map(a => a.title);
 }
 
 /* =========================
-   日経平均取得
+   重要イベント抽出（ここが核心）
+========================= */
+function extractImportant(news) {
+  const keywords = [
+    "cpi",
+    "inflation",
+    "fed",
+    "interest rate",
+    "central bank",
+    "powell",
+    "trump",
+    "war",
+    "geopolitics",
+    "oil",
+    "semiconductor",
+    "earnings",
+    "nvidia",
+    "tsmc"
+  ];
+
+  const filtered = news.filter(n =>
+    keywords.some(k => n.toLowerCase().includes(k))
+  );
+
+  // ▼重複っぽいもの削除
+  const unique = [];
+  const seen = new Set();
+
+  for (let t of filtered) {
+    const key = t.toLowerCase().slice(0, 40);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(t);
+    }
+  }
+
+  return unique.slice(0, 5); // AIに渡す最大数
+}
+
+/* =========================
+   日経平均
 ========================= */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
@@ -67,31 +86,11 @@ async function getNikkei() {
 }
 
 /* =========================
-   重要ニュースだけ抽出（AI前処理）
-========================= */
-function filterImportant(news) {
-  const keywords = [
-    "inflation",
-    "fed",
-    "interest",
-    "rate",
-    "cpi",
-    "recession",
-    "war",
-    "oil",
-    "central bank",
-    "geopolitics"
-  ];
-
-  return news.filter(n =>
-    keywords.some(k => n.toLowerCase().includes(k))
-  );
-}
-
-/* =========================
-   Gemini要約
+   Gemini要約（選定はしない）
 ========================= */
 async function summarize(newsTitles) {
+  if (newsTitles.length === 0) return [];
+
   try {
     const res = await fetch(
       "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
@@ -102,15 +101,14 @@ async function summarize(newsTitles) {
           contents: [{
             parts: [{
               text: `
-以下のニュースから株価に影響が大きいものを最大3つ選び、日本語で要約してください。
+以下のニュースを「株価に影響するイベント」として日本語で簡潔にまとめてください。
 
-条件:
-- 金利・インフレ・中央銀行・戦争・エネルギーのみ対象
-- 同じ内容は1つに統合
-- 必ずJSONのみで出力
+・1つのニュースにつき1〜2行
+・そのままメモとして使える文章にする
+・JSON形式で出力
 
 [
- {"title":"","summary":"","importance":0.9}
+ {"title":"","summary":""}
 ]
 
 ニュース:
@@ -128,54 +126,40 @@ ${newsTitles.join("\n")}
 
     if (!text) return [];
 
-    text = text
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     const start = text.indexOf("[");
     const end = text.lastIndexOf("]");
 
     if (start === -1 || end === -1) return [];
 
-    const parsed = JSON.parse(text.substring(start, end + 1));
+    return JSON.parse(text.substring(start, end + 1)).slice(0, 3);
 
-    return parsed.slice(0, 3);
-
-  } catch (e) {
-    console.error("Gemini error:", e);
+  } catch {
     return [];
   }
 }
 
 /* =========================
-   メイン処理
+   メイン
 ========================= */
 async function main() {
   const date = getDateJST();
 
-  let news = await getNews();
-
-  // ▼重要ニュースだけに絞る
-  news = filterImportant(news);
-
-  // ▼AIに渡す量を制限（重要）
-  news = news.slice(0, 10);
-
+  const rawNews = await getNews();
+  const important = extractImportant(rawNews);
   const nikkei = await getNikkei();
-  const selected = await summarize(news);
+  const summarized = await summarize(important);
 
-  // ▼fallback（AI失敗時）
-  const fallback = news.slice(0, 3).map(t => ({
+  const fallback = important.slice(0, 3).map(t => ({
     title: t,
-    summary: "（要約なし）",
-    importance: 0.5
+    summary: "（要約なし）"
   }));
 
   const data = {
     date,
     nikkei,
-    news: selected.length > 0 ? selected : fallback
+    news: summarized.length > 0 ? summarized : fallback
   };
 
   fs.mkdirSync("./data", { recursive: true });
