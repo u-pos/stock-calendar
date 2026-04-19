@@ -8,10 +8,7 @@ function format(d) {
 async function loadMonth() {
   const grid = document.getElementById("grid");
 
-  if (!grid) {
-    console.error("grid not found");
-    return;
-  }
+  if (!grid) return;
 
   const y = current.getFullYear();
   const m = current.getMonth();
@@ -26,17 +23,21 @@ async function loadMonth() {
 
   let html = "";
 
-  // 曜日
+  // ▼曜日ヘッダー
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  days.forEach(d => {
-    html += `<div class="cell header">${d}</div>`;
+  days.forEach((d, i) => {
+    let cls = "week";
+    if (i === 0) cls = "sun";
+    if (i === 6) cls = "sat";
+
+    html += `<div class="cell header ${cls}">${d}</div>`;
   });
 
   const first = new Date(y, m, 1);
   const startDay = first.getDay();
   const last = new Date(y, m + 1, 0);
 
-  // 空白
+  // ▼空白
   for (let i = 0; i < startDay; i++) {
     html += `<div class="cell"></div>`;
   }
@@ -49,21 +50,20 @@ async function loadMonth() {
 
     try {
       const res = await fetch(`data/${dateStr}.json`);
-      if (res.ok) {
-        data = await res.json();
-      }
-    } catch (e) {
-      console.log("fetch error:", dateStr);
-    }
+      if (res.ok) data = await res.json();
+    } catch {}
 
     if (data) {
-      const cls = data.nikkei.change_pct >= 0 ? "up" : "down";
+      const pct = data.nikkei.change_pct;
+      const cls = pct >= 0 ? "up" : "down";
 
       html += `
         <div class="cell">
-          <div class="date">${i}</div>
-          <div class="${cls}">
-            ${data.nikkei.close} (${data.nikkei.change_pct}%)
+          <div class="date">
+            ${i}
+            <span class="nikkei ${cls}">
+              日経${data.nikkei.close}円(${pct}%)
+            </span>
           </div>
           <ul>
             ${data.news.map(n =>
