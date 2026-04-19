@@ -36,13 +36,19 @@ function dedupeTitles(titles) {
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(stock OR market OR economy OR inflation OR Fed OR interest rate OR recession OR CPI)",
+      q: "(economy OR inflation OR Fed OR interest rate OR recession OR CPI OR central bank OR geopolitics)",
       language: "en",
       sortBy: "publishedAt",
       pageSize: 40,
-      apiKey: process.env.NEWS_API_KEY
+      apiKey: process.env.NEWS_API_KEY,
+      sources: "bloomberg,reuters,the-wall-street-journal"
     }
   });
+
+  const titles = res.data.articles.map(a => a.title);
+
+  return dedupeTitles(titles);
+}
 
   const titles = res.data.articles.map(a => a.title);
 
@@ -79,21 +85,21 @@ async function summarize(newsTitles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「株価に影響が大きいもののみ」を厳選して最大3つ選べ。
+以下のニュースから「株価に影響するマクロ要因のみ」を選べ。
 
-重要条件:
-- 同じ内容・類似ニュースは1つに統合
-- 必ず異なるテーマを選ぶ
-- スポーツ・エンタメ・企業PRは禁止
+重要:
+- 金融政策、インフレ、戦争、金利のみ対象
+- 個別株・ランキング・特集記事は禁止
+- 同じ内容は統合
 
-出力:
-必ずJSONのみで返すこと（説明文禁止）
+必ずJSONのみで出力:
 [
  {"title":"","summary":"","importance":0.9}
 ]
 
 ニュース:
 ${newsTitles.join("\n")}
+`
 `
           }]
         }]
