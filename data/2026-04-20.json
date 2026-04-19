@@ -6,18 +6,18 @@
   },
   "news": [
     {
-      "title": "There's an 'art' to writing AI prompts for personal finance, MIT professor says",
-      "summary": "",
-      "importance": 0.5
-    },
-    {
       "title": "Iran war, $4 gas prices, took all the fun right out of the U.S. consumer economy",
-      "summary": "",
+      "summary": "（要約なし）",
       "importance": 0.5
     },
     {
-      "title": "AI fears drive some young adults to grad school — 'people shelter in higher education,' expert says",
-      "summary": "",
+      "title": "U.S. renews Russian oil waiver amid Iran war price shocks",
+      "summary": "（要約なし）",
+      "importance": 0.5
+    },
+    {
+      "title": "We spoke to dozens of central bankers, policymakers and politicians about the Iran war — These are their biggest fears for the global economy",
+      "summary": "（要約なし）",
       "importance": 0.5
     }
   ]
