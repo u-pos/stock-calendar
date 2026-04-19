@@ -1,79 +1,97 @@
-let current = new Date();
-let cache = {};
+import axios from "axios";
+import fs from "fs";
 
-function format(d) {
-  return d.toISOString().split("T")[0];
+function getDateJST() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().split("T")[0];
 }
 
-function getMonthKey(y, m) {
-  return `${y}-${m}`;
-}
-
-async function loadMonth() {
-  const grid = document.getElementById("grid");
-
-  const y = current.getFullYear();
-  const m = current.getMonth();
-  const key = getMonthKey(y, m);
-
-  document.getElementById("title").innerText = `${y}-${m + 1}`;
-
-  // ▼キャッシュがあれば再描画しない
-  if (cache[key]) {
-    grid.innerHTML = cache[key];
-    return;
-  }
-
-  // ▼ローディング表示
-  grid.innerHTML = "<div>Loading...</div>";
-
-  const first = new Date(y, m, 1);
-  const last = new Date(y, m + 1, 0);
-
-  let html = "";
-
-  for (let i = 1; i <= last.getDate(); i++) {
-    const d = new Date(y, m, i);
-    const dateStr = format(d);
-
-    try {
-      const res = await fetch(`data/${dateStr}.json`);
-      const data = await res.json();
-
-      const cls = data.nikkei.change_pct >= 0 ? "up" : "down";
-
-      html += `
-        <div class="cell">
-          <div class="date">${i}</div>
-          <div class="${cls}">
-            ${data.nikkei.close} (${data.nikkei.change_pct}%)
-          </div>
-          <ul>
-            ${data.news.map(n =>
-              `<li title="${n.summary}">${n.title}</li>`
-            ).join("")}
-          </ul>
-        </div>
-      `;
-    } catch {
-      html += `<div class="cell"><div class="date">${i}</div></div>`;
+async function getNews() {
+  const res = await axios.get("https://newsapi.org/v2/everything", {
+    params: {
+      q: "economy OR inflation OR Fed OR war OR interest rate",
+      language: "en",
+      sortBy: "publishedAt",
+      pageSize: 30,
+      apiKey: process.env.NEWS_API_KEY
     }
+  });
+  return res.data.articles.map(a => a.title);
+}
+
+async function getNikkei() {
+  const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
+  const meta = res.data.chart.result[0].meta;
+
+  const close = meta.regularMarketPrice;
+  const prev = meta.previousClose;
+  const pct = ((close - prev) / prev) * 100;
+
+  return {
+    close: Math.round(close),
+    change_pct: Number(pct.toFixed(2))
+  };
+}
+
+async function summarize(newsTitles) {
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `
+以下のニュースから株に影響が大きいものを3つ選び、日本語で要約してください。
+
+必ずJSON配列で出力:
+[
+ {"title":"","summary":"","importance":0.9}
+]
+
+ニュース:
+${newsTitles.join("\n")}
+`
+          }]
+        }]
+      })
+    }
+  );
+
+  const json = await res.json();
+  console.log("Gemini:", JSON.stringify(json));
+
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) return [];
+
+  const match = text.match(/\[.*\]/s);
+  if (!match) return [];
+
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return [];
   }
-
-  // ▼キャッシュ保存
-  cache[key] = html;
-
-  grid.innerHTML = html;
 }
 
-function prev() {
-  current.setMonth(current.getMonth() - 1);
-  loadMonth();
+async function main() {
+  const date = getDateJST();
+
+  const news = await getNews();
+  const nikkei = await getNikkei();
+  const selected = await summarize(news);
+
+  const data = {
+    date,
+    nikkei,
+    news: selected
+  };
+
+  fs.mkdirSync("./data", { recursive: true });
+  fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
 }
 
-function next() {
-  current.setMonth(current.getMonth() + 1);
-  loadMonth();
-}
-
-loadMonth();
+main();
