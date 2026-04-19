@@ -1,7 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 
-/* 日付 */
+/* JST日付 */
 function getDateJST() {
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -26,21 +26,23 @@ function dedupeTitles(titles) {
   });
 }
 
-/* ニュース取得（修正版） */
+/* ニュース取得（超重要：質を強制） */
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(economy OR inflation OR Fed OR interest rate OR recession OR CPI OR central bank OR geopolitics)",
+      q: "(inflation OR Fed OR interest rate OR CPI OR recession OR central bank OR geopolitics OR oil OR war)",
       language: "en",
       sortBy: "publishedAt",
-      pageSize: 40,
+      pageSize: 50,
       apiKey: process.env.NEWS_API_KEY,
+
+      // ▼ここが最重要（質の担保）
+      domains: "bloomberg.com,reuters.com,wsj.com,cnbc.com"
     }
   });
 
   const titles = res.data.articles.map(a => a.title);
 
-  // ← ここが関数内にあるのが重要
   return dedupeTitles(titles);
 }
 
@@ -70,11 +72,11 @@ async function summarize(newsTitles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「株価に影響するマクロ要因のみ」を選べ。
+以下のニュースから「株価に直接影響するマクロ要因のみ」を3つ選べ。
 
-条件:
-- 金融政策・インフレ・金利・戦争のみ
-- 個別株・ランキングは禁止
+ルール:
+- 金利・インフレ・中央銀行・戦争・エネルギーのみ対象
+- エンタメ・レビュー・ランキングは禁止
 - 同じ内容は1つに統合
 
 JSONのみで出力:
