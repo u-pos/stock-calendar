@@ -1,57 +1,81 @@
 import axios from "axios";
 import fs from "fs";
 
-/* 日付 */
+/* =========================
+   JST日付 & 15:30固定
+========================= */
 function getDateJST() {
   const now = new Date();
   const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return jst.toISOString().split("T")[0];
 }
 
-/* ニュース取得 */
+function getToTimeISO() {
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
+  // 今日の15:30 JST
+  jst.setHours(15, 30, 0, 0);
+
+  return jst.toISOString();
+}
+
+/* =========================
+   ニュース取得（Reuters日本語）
+========================= */
 async function getNews() {
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(inflation OR CPI OR Fed OR interest rate OR central bank OR war OR semiconductor OR Trump OR Powell)",
-      language: "en",
+      q: "株 OR 金利 OR インフレ OR 日銀 OR FRB OR 原油 OR 戦争",
+      language: "ja",
       sortBy: "publishedAt",
       pageSize: 50,
       apiKey: process.env.NEWS_API_KEY,
-      domains: "bloomberg.com,reuters.com,wsj.com,cnbc.com"
+      domains: "jp.reuters.com",
+      to: getToTimeISO()
     }
   });
 
   return res.data.articles.map(a => a.title);
 }
 
-/* 重要ニュース抽出 */
-function extractImportant(news) {
+/* =========================
+   重要候補抽出（ルール）
+========================= */
+function filterImportant(news) {
   const keywords = [
-    "inflation","cpi","fed","interest rate",
-    "central bank","powell","trump",
-    "war","oil","geopolitics",
-    "semiconductor","earnings"
+    "日銀","FRB","金利","インフレ","CPI",
+    "戦争","原油","市場","株","経済"
   ];
 
-  return news
-    .filter(n => keywords.some(k => n.toLowerCase().includes(k)))
-    .slice(0, 5);
+  return news.filter(n =>
+    keywords.some(k => n.includes(k))
+  );
 }
 
-/* 日経 */
-async function getNikkei() {
-  const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
-  const meta = res.data.chart.result[0].meta;
+/* =========================
+   重複削除
+========================= */
+function dedupe(news) {
+  const seen = new Set();
+  const result = [];
 
-  return {
-    close: Math.round(meta.regularMarketPrice),
-    change_pct: Number(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2))
-  };
+  for (let t of news) {
+    const key = t.slice(0, 25);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(t);
+    }
+  }
+
+  return result;
 }
 
-/* AI処理（翻訳＋要約） */
-async function summarize(newsTitles) {
-  if (newsTitles.length === 0) return [];
+/* =========================
+   AIで3つ選ぶ（重要）
+========================= */
+async function pickTop3(news) {
+  if (news.length === 0) return [];
 
   try {
     const res = await fetch(
@@ -63,21 +87,15 @@ async function summarize(newsTitles) {
           contents: [{
             parts: [{
               text: `
-以下の英語ニュースを日本語に翻訳し、
-「株価に影響するイベント」として簡潔にまとめてください。
+以下のニュースから「株価に最も影響が大きいもの」を3つ選べ。
 
-条件:
-- 1件につき1〜2行
-- 因果関係（なぜ株に影響するか）を含める
-- そのままメモとして使える文章にする
-
-JSON形式:
-[
- {"title":"","summary":""}
-]
+ルール:
+- 金利・インフレ・中央銀行・戦争を優先
+- 同じ内容は1つにする
+- 出力は番号だけ（例: 1,3,5）
 
 ニュース:
-${newsTitles.join("\n")}
+${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
 `
             }]
           }]
@@ -86,42 +104,56 @@ ${newsTitles.join("\n")}
     );
 
     const json = await res.json();
-    let text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    if (!text) return [];
+    const nums = text.match(/\d+/g);
+    if (!nums) return [];
 
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
-
-    if (start === -1 || end === -1) return [];
-
-    return JSON.parse(text.substring(start, end + 1)).slice(0, 3);
+    return nums.map(n => news[Number(n)-1]).slice(0,3);
 
   } catch {
     return [];
   }
 }
 
-/* メイン */
+/* =========================
+   日経平均
+========================= */
+async function getNikkei() {
+  const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
+  const meta = res.data.chart.result[0].meta;
+
+  return {
+    close: Math.round(meta.regularMarketPrice),
+    change_pct: Number(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2))
+  };
+}
+
+/* =========================
+   メイン
+========================= */
 async function main() {
   const date = getDateJST();
 
-  const rawNews = await getNews();
-  const important = extractImportant(rawNews);
-  const nikkei = await getNikkei();
-  const summarized = await summarize(important);
+  let news = await getNews();
+  news = filterImportant(news);
+  news = dedupe(news).slice(0, 10);
 
-  const fallback = important.slice(0, 3).map(t => ({
+  const picked = await pickTop3(news);
+
+  const nikkei = await getNikkei();
+
+  const fallback = news.slice(0,3);
+
+  const finalNews = (picked.length > 0 ? picked : fallback).map(t => ({
     title: t,
-    summary: "（要約なし）"
+    summary: ""
   }));
 
   const data = {
     date,
     nikkei,
-    news: summarized.length > 0 ? summarized : fallback
+    news: finalNews
   };
 
   fs.mkdirSync("./data", { recursive: true });
