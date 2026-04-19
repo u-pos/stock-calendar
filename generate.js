@@ -40,30 +40,33 @@ async function getNikkei() {
 }
 
 async function summarize(newsTitles) {
-  const prompt = `
-以下のニュースから株式市場に影響が大きいものを3つ選び、日本語で要約してください。
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `
+以下のニュースから株に影響が大きいものを3つ選び、日本語で要約しJSONで出力:
+${newsTitles.join("\n")}
+`
+          }]
+        }]
+      })
+    }
+  );
 
-条件:
-- マクロ経済、金融政策、戦争、資源優先
-- 個別企業ニュースは禁止
-- 各タイトル20文字以内
-- 要約30文字以内
-- 上げ要因か下げ要因を判定
+  const json = await res.json();
+  const text = json.candidates[0].content.parts[0].text;
 
-JSONのみで出力:
-[
- {"title":"","summary":"","importance":0.9,"bias":"bullish","tag":"金融政策"}
-]
-`;
-
-  const res = await openai.chat.completions.create({
-    model: "gpt-4.1-mini",
-    messages: [{ role: "user", content: prompt + newsTitles.join("\n") }]
-  });
-
-  return JSON.parse(res.choices[0].message.content);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [];
+  }
 }
-
 async function main() {
   const date = getDateJST();
 
