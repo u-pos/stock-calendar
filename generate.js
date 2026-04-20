@@ -17,7 +17,7 @@ async function getNews() {
 
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "(Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession)",
+      q: "(Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession OR (Trump AND (tariff OR China OR war OR oil)))",
       language: "en",
       sortBy: "publishedAt",
       pageSize: 100,
