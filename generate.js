@@ -109,6 +109,7 @@ async function summarizeNews(news) {
     return news.map(t => "■" + t);
   }
 
+  // ① まず要約
   const res = await fetch(
     "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
     {
@@ -118,16 +119,15 @@ async function summarizeNews(news) {
         contents: [{
           parts: [{
             text: `
-以下のニュースを必ず日本語で書け。英語は禁止。
+以下のニュースを「原因ベースで日本語1行」に要約せよ。
 
-ルール：
+条件：
 ・必ず日本語
-・1行（短く）
-・原因ベース
-・先頭に「■」
+・1行
+・先頭に■
 
-JSON配列で返答：
-["■〇〇", "■〇〇"]
+JSONで返せ：
+["■〇〇"]
 
 ニュース：
 ${news.join("\n")}
@@ -142,19 +142,52 @@ ${news.join("\n")}
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   const match = text.match(/\[.*\]/s);
-  let result;
 
+  let result;
   try {
     result = JSON.parse(match[0]);
   } catch {
-    result = news.map(t => "■" + t);
+    result = news.map(t => t);
   }
 
-  // ★ここ重要：日本語チェック
-  return result.map(t => {
+  // ② 日本語チェック＆強制翻訳
+  const fixed = [];
+
+  for (let t of result) {
     const isJapanese = /[ぁ-んァ-ン一-龯]/.test(t);
-    return isJapanese ? t : "■" + t; // 英語ならそのままfallback
-  });
+
+    if (isJapanese) {
+      fixed.push(t);
+      continue;
+    }
+
+    // ★ここが本質：英語なら再翻訳
+    const trans = await fetch(
+      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `
+以下を日本語で短く要約し直せ：
+
+${t}
+`
+            }]
+          }]
+        })
+      }
+    );
+
+    const j = await trans.json();
+    const txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || t;
+
+    fixed.push("■" + txt.trim());
+  }
+
+  return fixed;
 }
 function removeDuplicateThemes(news) {
   const seen = new Set();
