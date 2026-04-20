@@ -47,7 +47,6 @@ function filterNews(titles) {
   const ok = include.some(k => low.includes(k));
   const ng = exclude.some(k => low.includes(k));
 
-  // ★ここ追加
   const isTrumpValid =
     low.includes("trump") &&
     (
@@ -64,7 +63,7 @@ function filterNews(titles) {
 
   return (ok || isTrumpValid) && !ng && !isResult;
 });
-
+}
 /* ===== 重複統合 ===== */
 function clusterNews(titles) {
   const groups = {};
