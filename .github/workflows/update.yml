@@ -20,6 +20,7 @@ jobs:
 
       - run: node generate.js
         env:
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - run: |
