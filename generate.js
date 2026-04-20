@@ -154,7 +154,7 @@ ${news.join("\n")}
   const fixed = [];
 
   for (let t of result) {
-    const isJapanese = /[ぁ-んァ-ン一-龯]/.test(t);
+　　const isJapanese = /^[■\s]*[ぁ-んァ-ン一-龯]/.test(t);
 
     if (isJapanese) {
       fixed.push(t);
