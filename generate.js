@@ -152,11 +152,11 @@ async function main() {
 
   const nikkei = await getNikkei();
 
-  const data = {
-    date,
-    nikkei,
-    news: finalNews.map(t => ({ title: t })) // ←ここも重要
-  };
+const data = {
+  date,
+  nikkei,
+  news: finalNews.map(t => ({ title: t }))
+};
 
   fs.mkdirSync("./data", { recursive: true });
   fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
