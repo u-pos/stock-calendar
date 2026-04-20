@@ -118,13 +118,13 @@ async function summarizeNews(news) {
         contents: [{
           parts: [{
             text: `
-以下のニュースを「原因としてわかりやすい日本語1行」に要約してください。
+以下のニュースを日本語で1行に要約してください。
 
 ルール：
 ・必ず日本語
 ・1行（短く）
-・原因ベース（結果ではなく）
-・先頭に「■」をつける
+・原因ベース
+・先頭に「■」
 
 JSON配列で返答：
 ["■〇〇", "■〇〇"]
@@ -142,13 +142,19 @@ ${news.join("\n")}
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   const match = text.match(/\[.*\]/s);
-  if (!match) return news.map(t => "■" + t);
+  let result;
 
   try {
-    return JSON.parse(match[0]);
+    result = JSON.parse(match[0]);
   } catch {
-    return news.map(t => "■" + t);
+    result = news.map(t => "■" + t);
   }
+
+  // ★ここ重要：日本語チェック
+  return result.map(t => {
+    const isJapanese = /[ぁ-んァ-ン一-龯]/.test(t);
+    return isJapanese ? t : "■" + t; // 英語ならそのままfallback
+  });
 }
 function removeDuplicateThemes(news) {
   const seen = new Set();
