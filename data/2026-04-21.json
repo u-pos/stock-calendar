@@ -1,0 +1,18 @@
+{
+  "date": "2026-04-21",
+  "nikkei": {
+    "close": 58825,
+    "change_pct": 0.6
+  },
+  "news": [
+    {
+      "title": "US stocks edge lower as oil rises, mega-cap tech takes breather"
+    },
+    {
+      "title": "FTSE 100 today: Stocks slide amid Middle East tensions, oil rebounds"
+    },
+    {
+      "title": "Delta: Seattle – Trondheim, Norway. $525 (Basic Economy) / $725 (Regular Economy). Roundtrip, including all Taxes"
+    }
+  ]
+}
