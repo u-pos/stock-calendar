@@ -8,7 +8,7 @@ function getDateJST() {
   return jst.toISOString().split("T")[0];
 }
 
-/* ===== ニュース取得 ===== */
+/* ===== ニュース取得（多めに取る） ===== */
 async function getNews() {
   if (!process.env.NEWS_API_KEY) {
     console.log("NEWS_API_KEY missing");
@@ -17,10 +17,10 @@ async function getNews() {
 
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "economy OR inflation OR Fed OR war OR oil OR Trump",
+      q: "economy OR inflation OR Fed OR war OR oil OR Trump OR China OR interest rate",
       language: "en",
       sortBy: "publishedAt",
-      pageSize: 80,
+      pageSize: 100,
       apiKey: process.env.NEWS_API_KEY
     }
   });
@@ -28,71 +28,11 @@ async function getNews() {
   return res.data.articles.map(a => a.title);
 }
 
-/* ===== フィルタ ===== */
-function filterNews(titles) {
-  const include = [
-    "fed","inflation","cpi","rate","war","oil","iran",
-    "middle east","economy","bank","central bank",
-    "china","tariff","export","import","gdp","recession"
-  ];
-
-  const exclude = [
-    "insider","review","top","product","buy","sell",
-    "flight","ticket","deal","roundtrip","sale",
-    "guide","hotel","travel"
-  ];
-
- return titles.filter(t => {
-  const low = t.toLowerCase();
-
-  const ok = include.some(k => low.includes(k));
-  const ng = exclude.some(k => low.includes(k));
-
-  const isTrumpValid =
-    low.includes("trump") &&
-    (
-      low.includes("war") ||
-      low.includes("oil") ||
-      low.includes("tariff") ||
-      low.includes("china") ||
-      low.includes("economy")
-    );
-
-  const isResult =
-    /(stocks?|shares?|markets?|futures?|equities)/.test(low) &&
-    /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken|lower)/.test(low);
-
-  return (!ng && !isResult) && (ok || isTrumpValid || low.includes("tension"));
-});
-}
-/* ===== 重複統合 ===== */
-function clusterNews(titles) {
-  const groups = {};
-
-  for (let t of titles) {
-    const low = t.toLowerCase();
-    let key = "other";
-
-    if (low.includes("iran") || low.includes("middle east") || low.includes("war") || low.includes("oil")) {
-      key = "war-oil";
-    } else if (low.includes("fed") || low.includes("rate") || low.includes("interest")) {
-      key = "rate";
-    } else if (low.includes("inflation") || low.includes("cpi")) {
-      key = "inflation";
-    } else if (low.includes("trump")) {
-      key = "trump";
-    }
-
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(t);
+/* ===== AIでスコア評価 ===== */
+async function scoreNews(titles) {
+  if (!process.env.GEMINI_API_KEY || titles.length === 0) {
+    return titles.slice(0, 3).map(t => ({ title: t, score: 0.5 }));
   }
-
-  return Object.values(groups).map(g => g[0]);
-}
-
-/* ===== AI選別 ===== */
-async function pickTop3(news) {
-  if (!process.env.GEMINI_API_KEY || news.length === 0) return news.slice(0, 3);
 
   const res = await fetch(
     "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
@@ -103,16 +43,21 @@ async function pickTop3(news) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「株価に影響した原因」を最大3つ選べ
+以下のニュースタイトルを評価してください。
 
-ルール：
-・同じテーマは1つ
-・株価の結果ニュースは禁止
-・原因のみ選べ
+評価基準：
+・株価への影響度（0〜1）
+・原因かどうか（0〜1）
+・ゴミニュースは0
 
-番号だけ答えろ（例: 1,3）
+JSONで返答：
+[
+ { "i":1, "score":0.9 },
+ { "i":2, "score":0.1 }
+]
 
-${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
+ニュース一覧：
+${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
 `
           }]
         }]
@@ -123,10 +68,28 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
   const json = await res.json();
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  const nums = text.match(/\d+/g);
-  if (!nums) return news.slice(0, 3);
+  const match = text.match(/\[.*\]/s);
+  if (!match) return titles.map(t => ({ title: t, score: 0 }));
 
-  return nums.map(n => news[n - 1]).filter(Boolean);
+  let scores;
+  try {
+    scores = JSON.parse(match[0]);
+  } catch {
+    return titles.map(t => ({ title: t, score: 0 }));
+  }
+
+  return scores.map(s => ({
+    title: titles[s.i - 1],
+    score: s.score
+  }));
+}
+
+/* ===== 上位3件抽出 ===== */
+function pickTop3(scored) {
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(x => x.title);
 }
 
 /* ===== 日経 ===== */
@@ -148,10 +111,9 @@ async function getNikkei() {
 async function main() {
   const date = getDateJST();
 
-  const rawNews = await getNews();
-  const filtered = filterNews(rawNews);
-  const clustered = clusterNews(filtered);
-  const selected = await pickTop3(clustered);
+  const titles = await getNews();
+  const scored = await scoreNews(titles);
+  const selected = pickTop3(scored);
 
   const nikkei = await getNikkei();
 
