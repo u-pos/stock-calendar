@@ -104,7 +104,27 @@ function pickTop3(scored) {
     .slice(0, 3)
     .map(x => x.title);
 }
+function removeDuplicateThemes(news) {
+  const seen = new Set();
 
+  return news.filter(t => {
+    const low = t.toLowerCase();
+
+    let key = "other";
+
+    if (low.includes("iran") || low.includes("oil") || low.includes("energy")) {
+      key = "energy-war";
+    } else if (low.includes("inflation")) {
+      key = "inflation";
+    } else if (low.includes("interest") || low.includes("bank")) {
+      key = "rate";
+    }
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
