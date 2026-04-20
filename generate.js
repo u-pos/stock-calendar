@@ -83,17 +83,26 @@ function clusterNews(titles) {
 
     let key = "other";
 
-    if (low.includes("iran") || low.includes("middle east") || low.includes("war")) key = "war";
-    else if (low.includes("oil") || low.includes("crude")) key = "oil";
-    else if (low.includes("fed") || low.includes("interest") || low.includes("rate")) key = "rate";
-    else if (low.includes("inflation") || low.includes("cpi")) key = "inflation";
-    else if (low.includes("trump")) key = "trump";
+    // ★ここが重要（広くまとめる）
+    if (low.includes("iran") || low.includes("middle east") || low.includes("war") || low.includes("oil")) {
+      key = "war-oil";
+    }
+    else if (low.includes("fed") || low.includes("rate") || low.includes("interest")) {
+      key = "rate";
+    }
+    else if (low.includes("inflation") || low.includes("cpi")) {
+      key = "inflation";
+    }
+    else if (low.includes("trump")) {
+      key = "trump";
+    }
 
     if (!groups[key]) groups[key] = [];
     groups[key].push(t);
   }
 
-  return Object.values(groups).map(g => g[0]); // 各グループ1件だけ
+  // 各テーマ1件だけ残す
+  return Object.values(groups).map(g => g[0]);
 }
 
 /* =========================
@@ -109,12 +118,18 @@ async function convertToCause(news) {
         body: JSON.stringify({
           contents:[{
             parts:[{
-              text:`
-以下のニュースを「市場の原因となる一文」に変換せよ。
-日本語で出力。
-
-${news.join("\n")}
-`
+               text: `
+               以下のニュースから「市場の原因」を最大3つ選べ。
+               
+               ルール：
+               ・同じテーマは1つにまとめる
+               ・株価の上昇/下落の記事は禁止
+               ・必ず原因を選ぶ（結果ではなく）
+               
+               番号だけ答えろ（例: 1,3）
+               
+               ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
+               `
             }]
           }]
         })
