@@ -101,16 +101,24 @@ ${news.join("\n")}
     );
 
     const json = await res.json();
+
     const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    const lines = text.split("\n").filter(l=>l.trim());
-    return lines;
+    // ★ここが重要（落ちないようにする）
+    if (!text) {
+      console.log("Gemini empty response");
+      return news;
+    }
 
-  } catch {
+    const lines = text.split("\n").filter(l=>l.trim());
+
+    return lines.length ? lines : news;
+
+  } catch (e) {
+    console.log("Gemini error:", e);
     return news;
   }
 }
-
 /* =========================
    AI最終選別
 ========================= */
