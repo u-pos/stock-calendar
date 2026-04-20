@@ -2,8 +2,10 @@
   "name": "stock-calendar",
   "version": "1.0.0",
   "type": "module",
+}
+{
   "dependencies": {
     "axios": "^1.6.0",
-    "openai": "^4.0.0"
+    "xml2js": "^0.6.0"
   }
 }
