@@ -63,9 +63,9 @@ function filterNews(titles) {
 
     // ★結果記事排除（超重要）
    const isResult =
-     /(stocks?|shares?|markets?|futures?)/.test(low) &&
-     /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken)/.test(low);
-
+     /(stocks?|shares?|markets?|futures?|equities)/.test(low) &&
+     /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken|lower)/.test(low);
+     
 /* =========================
    クラスタリング（超重要）
 ========================= */
