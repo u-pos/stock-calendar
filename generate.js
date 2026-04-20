@@ -42,12 +42,33 @@ async function getNewsAPI() {
    フィルタ
 ========================= */
 function filterNews(titles) {
-  const include = ["fed","inflation","cpi","rate","war","oil","trump","central bank","economy"];
-  const exclude = ["insider","review","top 10","product","buy","sell","earnings"];
+  const include = [
+    "fed","inflation","cpi","rate","war","oil","iran","middle east","trump","economy"
+  ];
 
-  return titles.filter(t=>{
+  const exclude = [
+    "insider","review","top","product","buy","sell",
+    "flight","ticket","deal","roundtrip","sale",
+    "guide","hotel","travel"
+  ];
+
+  return titles.filter(t => {
     const low = t.toLowerCase();
-    return include.some(k=>low.includes(k)) && !exclude.some(k=>low.includes(k));
+
+    // 必須ワード
+    const ok = include.some(k => low.includes(k));
+
+    // ゴミ排除
+    const ng = exclude.some(k => low.includes(k));
+
+    // ★結果記事排除（超重要）
+    const isResult =
+      low.includes("stocks") ||
+      low.includes("shares") ||
+      low.includes("futures") ||
+      low.includes("markets");
+
+    return ok && !ng && !isResult;
   });
 }
 
