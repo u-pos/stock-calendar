@@ -63,10 +63,15 @@ function filterNews(titles) {
 
     // ★結果記事排除（超重要）
     const isResult =
-      low.includes("stocks") ||
-      low.includes("shares") ||
-      low.includes("futures") ||
-      low.includes("markets");
+     low.includes("stocks edge") ||
+     low.includes("stocks fall") ||
+     low.includes("stocks slip") ||
+     low.includes("shares fall") ||
+     low.includes("shares slip") ||
+     low.includes("futures fall") ||
+     low.includes("futures slip") ||
+     low.includes("markets edge") ||
+     low.includes("markets fall");
 
     return ok && !ng && !isResult;
   });
@@ -119,7 +124,7 @@ async function convertToCause(news) {
           contents:[{
             parts:[{
                text: `
-               以下のニュースから「市場の原因」を最大3つ選べ。
+               市場全体（株価）に影響が大きい原因を選べ
                
                ルール：
                ・同じテーマは1つにまとめる
