@@ -118,7 +118,7 @@ async function summarizeNews(news) {
         contents: [{
           parts: [{
             text: `
-以下のニュースを日本語で1行に要約してください。
+以下のニュースを必ず日本語で書け。英語は禁止。
 
 ルール：
 ・必ず日本語
