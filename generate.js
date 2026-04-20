@@ -1,99 +1,97 @@
-import axios from "axios";
-import fs from "fs";
-import xml2js from "xml2js";
+const grid = document.getElementById("grid");
+const title = document.getElementById("title");
 
-function getDateJST() {
-  const now = new Date();
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+let current = new Date();
 
-  const y = jst.getFullYear();
-  const m = String(jst.getMonth() + 1).padStart(2, "0");
-  const d = String(jst.getDate()).padStart(2, "0");
-
-  return `${y}-${m}-${d}`;
+/* JST固定 */
+function getJSTParts(date) {
+  const jst = new Date(date.getTime() + 9*60*60*1000);
+  return {
+    y: jst.getFullYear(),
+    m: jst.getMonth(),
+    d: jst.getDate()
+  };
 }
 
-async function getNews() {
-  try {
-    const res = await axios.get(
-      "https://www.investing.com/rss/news_25.rss",
-      { headers: { "User-Agent": "Mozilla/5.0" } }
-    );
+function formatDate(y,m,d){
+  return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
 
-    const parser = new xml2js.Parser();
-    const parsed = await parser.parseStringPromise(res.data);
+async function render() {
+  grid.innerHTML = "";
 
-    const items = parsed.rss.channel[0].item;
+  const {y, m} = getJSTParts(current);
 
-    const titles = items.map(i => i.title[0]);
+  title.textContent = `${y}-${m+1}`;
 
-    // ゆるめフィルタ
-    const keywords = [
-      "fed","rate","inflation","cpi","jobs","war",
-      "oil","economy","central bank","earnings"
-    ];
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-    let filtered = titles.filter(t =>
-      keywords.some(k => t.toLowerCase().includes(k))
-    );
+  days.forEach((d,i)=>{
+    const div = document.createElement("div");
+    div.className = "header " + (i==0?"sun":i==6?"sat":"week");
+    div.textContent = d;
+    grid.appendChild(div);
+  });
 
-    // ★ここが重要
-    if (filtered.length < 3) {
-      filtered = titles;
+  const first = new Date(y, m, 1).getDay();
+  const last = new Date(y, m+1, 0).getDate();
+
+  for(let i=0;i<first;i++){
+    grid.appendChild(document.createElement("div"));
+  }
+
+  for(let d=1; d<=last; d++){
+
+    const cell = document.createElement("div");
+    cell.className = "cell";
+
+    const dateStr = formatDate(y,m,d);
+
+    cell.innerHTML = `<div class="date">${d}</div>`;
+
+    try {
+      const res = await fetch(`./data/${dateStr}.json`);
+      if(res.ok){
+        const data = await res.json();
+
+        // 日経
+        if(data.nikkei){
+          const cls = data.nikkei.change_pct >=0 ? "up":"down";
+
+          cell.innerHTML += `
+            <div class="nikkei ${cls}">
+              日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
+            </div>
+          `;
+        }
+
+        // ★ここが重要：ニュース表示
+        if(data.news){
+          const list = document.createElement("ul");
+
+          data.news.forEach(n=>{
+            if(n.title){
+              const li = document.createElement("li");
+              li.textContent = n.title;
+              list.appendChild(li);
+            }
+          });
+
+          cell.appendChild(list);
+        }
+      }
+    } catch(e){
+      console.log("error:", e);
     }
 
-    // 重複除去
-    const seen = new Set();
-    const unique = filtered.filter(t => {
-      const key = t.slice(0, 40);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    return unique.slice(0, 3);
-
-  } catch (e) {
-    console.log("news error:", e.message);
-    return [];
+    grid.appendChild(cell);
   }
 }
 
-async function getNikkei() {
-  const res = await axios.get(
-    "https://query1.finance.yahoo.com/v8/finance/chart/^N225"
-  );
-  const meta = res.data.chart.result[0].meta;
+function prev(){ current.setMonth(current.getMonth()-1); render(); }
+function next(){ current.setMonth(current.getMonth()+1); render(); }
 
-  return {
-    close: Math.round(meta.regularMarketPrice),
-    change_pct: Number(
-      ((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2)
-    )
-  };
-}
+render();
 
-async function main() {
-  const date = getDateJST();
-
-  const newsTitles = await getNews();
-  const nikkei = await getNikkei();
-
-  const news = newsTitles.map(t => ({
-    title: t,
-    summary: ""
-  }));
-
-  const data = {
-    date,
-    nikkei,
-    news
-  };
-
-  fs.mkdirSync("./data", { recursive: true });
-  fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
-
-  console.log("generated:", JSON.stringify(data, null, 2));
-}
-
-main();
+window.prev = prev;
+window.next = next;
