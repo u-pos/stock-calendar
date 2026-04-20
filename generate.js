@@ -171,30 +171,52 @@ async function getNikkei() {
    メイン
 ========================= */
 async function main() {
-  const date = getDateJST();
+  try {
+    const date = getDateJST();
 
-  const a = await getInvesting();
-  const b = await getNewsAPI();
+    console.log("STEP1: fetching news");
 
-  let merged = [...a, ...b];
-  merged = filterNews(merged);
-  merged = clusterNews(merged);
+    const a = await getInvesting();
+    const b = await getNewsAPI();
 
-  let causes = await convertToCause(merged);
-  const selected = await pickTop3(causes);
+    console.log("STEP2: merging");
 
-  const nikkei = await getNikkei();
+    let merged = [...a, ...b];
 
-  const data = {
-    date,
-    nikkei,
-    news: selected.map(t=>({title:t}))
-  };
+    console.log("STEP3: filtering");
 
-  fs.mkdirSync("./data",{recursive:true});
-  fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data,null,2));
+    merged = filterNews(merged);
 
-  console.log(data);
+    console.log("STEP4: clustering");
+
+    merged = clusterNews(merged);
+
+    console.log("STEP5: convertToCause");
+
+    let causes = await convertToCause(merged);
+
+    console.log("STEP6: pickTop3");
+
+    const selected = await pickTop3(causes);
+
+    console.log("STEP7: nikkei");
+
+    const nikkei = await getNikkei();
+
+    const data = {
+      date,
+      nikkei,
+      news: selected.map(t => ({ title: t }))
+    };
+
+    fs.mkdirSync("./data", { recursive: true });
+    fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
+
+    console.log("SUCCESS", data);
+
+  } catch (e) {
+    console.log("🔥 ERROR LOCATION:", e);
+    process.exit(1);
+  }
 }
-
 main();
