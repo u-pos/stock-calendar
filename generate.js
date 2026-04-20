@@ -104,6 +104,52 @@ function pickTop3(scored) {
     .slice(0, 3)
     .map(x => x.title);
 }
+async function summarizeNews(news) {
+  if (!process.env.GEMINI_API_KEY || news.length === 0) {
+    return news.map(t => "■" + t);
+  }
+
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `
+以下のニュースを「原因としてわかりやすい日本語1行」に要約してください。
+
+ルール：
+・必ず日本語
+・1行（短く）
+・原因ベース（結果ではなく）
+・先頭に「■」をつける
+
+JSON配列で返答：
+["■〇〇", "■〇〇"]
+
+ニュース：
+${news.join("\n")}
+`
+          }]
+        }]
+      })
+    }
+  );
+
+  const json = await res.json();
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+  const match = text.match(/\[.*\]/s);
+  if (!match) return news.map(t => "■" + t);
+
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return news.map(t => "■" + t);
+  }
+}
 function removeDuplicateThemes(news) {
   const seen = new Set();
 
@@ -149,13 +195,13 @@ async function main() {
 
   const selected = pickTop3(scored);
   const finalNews = removeDuplicateThemes(selected);
-
+  const summarized = await summarizeNews(finalNews);
   const nikkei = await getNikkei();
 
 const data = {
   date,
   nikkei,
-  news: finalNews.map(t => ({ title: t }))
+  news: summarized.map(t => ({ title: t }))
 };
 
   fs.mkdirSync("./data", { recursive: true });
