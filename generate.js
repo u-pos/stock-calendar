@@ -25,15 +25,22 @@ async function getNews() {
 
     const items = parsed.rss.channel[0].item;
 
+    const titles = items.map(i => i.title[0]);
+
+    // ゆるめフィルタ
     const keywords = [
-      "Fed", "inflation", "interest", "rate",
-      "war", "oil", "CPI", "jobs", "unemployment",
-      "central bank", "semiconductor", "earnings"
+      "fed","rate","inflation","cpi","jobs","war",
+      "oil","economy","central bank","earnings"
     ];
 
-    const filtered = items
-      .map(i => i.title[0])
-      .filter(t => keywords.some(k => t.toLowerCase().includes(k.toLowerCase())));
+    let filtered = titles.filter(t =>
+      keywords.some(k => t.toLowerCase().includes(k))
+    );
+
+    // ★ここが重要
+    if (filtered.length < 3) {
+      filtered = titles;
+    }
 
     // 重複除去
     const seen = new Set();
@@ -86,7 +93,7 @@ async function main() {
   fs.mkdirSync("./data", { recursive: true });
   fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
 
-  console.log("generated:", data);
+  console.log("generated:", JSON.stringify(data, null, 2));
 }
 
 main();
