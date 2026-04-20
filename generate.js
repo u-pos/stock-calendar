@@ -1,12 +1,10 @@
 import axios from "axios";
 import fs from "fs";
 
-/* =========================
-   JST日付（完全修正）
-========================= */
+/* JST日付 */
 function getDateJST() {
   const now = new Date();
-  const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
 
   const y = jst.getFullYear();
   const m = String(jst.getMonth() + 1).padStart(2, '0');
@@ -15,33 +13,40 @@ function getDateJST() {
   return `${y}-${m}-${d}`;
 }
 
-/* =========================
-   nikkei225jp取得（修正版）
-========================= */
+/* nikkei225jp取得（確実版） */
 async function getNews() {
   try {
     const res = await axios.get("https://nikkei225jp.com/news/");
     const html = res.data;
 
-    const matches = [...html.matchAll(/<a[^>]+href="\/news\/[^"]+"[^>]*>(.*?)<\/a>/g)];
+    // シンプルに「news/」リンクを全部拾う
+    const matches = [...html.matchAll(/href="(\/news\/[^"]+)"/g)];
 
-    const titles = matches.map(m =>
-      m[1].replace(/<[^>]+>/g, "").trim()
-    );
+    const urls = matches.map(m => m[1]);
 
-    console.log("取得ニュース:", titles);
+    const titles = [];
 
-    return titles.slice(0, 20);
+    for (let url of urls.slice(0,10)) {
+      try {
+        const page = await axios.get("https://nikkei225jp.com" + url);
+        const h1 = page.data.match(/<h1[^>]*>(.*?)<\/h1>/);
+
+        if (h1) {
+          const title = h1[1].replace(/<[^>]+>/g, "").trim();
+          titles.push(title);
+        }
+      } catch {}
+    }
+
+    return titles;
 
   } catch (e) {
-    console.log("ニュース取得失敗", e.message);
+    console.log("取得失敗", e.message);
     return [];
   }
 }
 
-/* =========================
-   重複削除
-========================= */
+/* 重複削除 */
 function dedupe(news) {
   const seen = new Set();
   return news.filter(t => {
@@ -52,9 +57,7 @@ function dedupe(news) {
   });
 }
 
-/* =========================
-   AI選別
-========================= */
+/* AI選択 */
 async function pickTop3(news) {
   if (news.length === 0) return [];
 
@@ -68,8 +71,8 @@ async function pickTop3(news) {
           contents: [{
             parts: [{
               text: `
-以下のニュースから日経平均に影響が大きいものを3つ選べ。
-番号だけ答えろ（例: 1,3,5）
+以下から重要ニュースを3つ選べ。
+番号だけ答えろ。
 
 ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
 `
@@ -92,27 +95,18 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
   }
 }
 
-/* =========================
-   日経平均
-========================= */
+/* 日経 */
 async function getNikkei() {
-  try {
-    const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
-    const meta = res.data.chart.result[0].meta;
+  const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
+  const meta = res.data.chart.result[0].meta;
 
-    return {
-      close: Math.round(meta.regularMarketPrice),
-      change_pct: Number(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2))
-    };
-
-  } catch {
-    return null;
-  }
+  return {
+    close: Math.round(meta.regularMarketPrice),
+    change_pct: Number(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2))
+  };
 }
 
-/* =========================
-   メイン
-========================= */
+/* メイン */
 async function main() {
   const date = getDateJST();
 
