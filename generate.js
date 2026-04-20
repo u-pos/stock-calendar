@@ -32,7 +32,7 @@ async function getNews() {
 function filterNews(titles) {
   const include = [
     "fed","inflation","cpi","rate","war","oil","iran",
-    "middle east","trump","economy"
+    "middle east","economy"
   ];
 
   const exclude = [
@@ -41,20 +41,29 @@ function filterNews(titles) {
     "guide","hotel","travel"
   ];
 
-  return titles.filter(t => {
-    const low = t.toLowerCase();
+ return titles.filter(t => {
+  const low = t.toLowerCase();
 
-    const ok = include.some(k => low.includes(k));
-    const ng = exclude.some(k => low.includes(k));
+  const ok = include.some(k => low.includes(k));
+  const ng = exclude.some(k => low.includes(k));
 
-    // ★結果記事排除（完成版）
-    const isResult =
-      /(stocks?|shares?|markets?|futures?|equities)/.test(low) &&
-      /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken|lower)/.test(low);
+  // ★ここ追加
+  const isTrumpValid =
+    low.includes("trump") &&
+    (
+      low.includes("war") ||
+      low.includes("oil") ||
+      low.includes("tariff") ||
+      low.includes("china") ||
+      low.includes("economy")
+    );
 
-    return ok && !ng && !isResult;
-  });
-}
+  const isResult =
+    /(stocks?|shares?|markets?|futures?|equities)/.test(low) &&
+    /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken|lower)/.test(low);
+
+  return (ok || isTrumpValid) && !ng && !isResult;
+});
 
 /* ===== 重複統合 ===== */
 function clusterNews(titles) {
