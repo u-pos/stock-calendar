@@ -1,134 +1,94 @@
-import axios from "axios";
-import fs from "fs";
+const grid = document.getElementById("grid");
+const title = document.getElementById("title");
 
-/* JST日付 */
-function getDateJST() {
-  const now = new Date();
-  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+let current = new Date();
 
+/* JST日付取得 */
+function getJSTDateString(date) {
+  const jst = new Date(date.getTime() + 9*60*60*1000);
   const y = jst.getFullYear();
-  const m = String(jst.getMonth() + 1).padStart(2, '0');
-  const d = String(jst.getDate()).padStart(2, '0');
-
+  const m = String(jst.getMonth()+1).padStart(2,"0");
+  const d = String(jst.getDate()).padStart(2,"0");
   return `${y}-${m}-${d}`;
 }
 
-/* nikkei225jp取得（確実版） */
-async function getNews() {
-  try {
-    const res = await axios.get("https://nikkei225jp.com/news/");
-    const html = res.data;
+/* 月描画 */
+async function render() {
+  grid.innerHTML = "";
 
-    // シンプルに「news/」リンクを全部拾う
-    const matches = [...html.matchAll(/href="(\/news\/[^"]+)"/g)];
+  const year = current.getFullYear();
+  const month = current.getMonth();
 
-    const urls = matches.map(m => m[1]);
+  title.textContent = `${year}-${month+1}`;
 
-    const titles = [];
+  /* 曜日ヘッダー */
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-    for (let url of urls.slice(0,10)) {
-      try {
-        const page = await axios.get("https://nikkei225jp.com" + url);
-        const h1 = page.data.match(/<h1[^>]*>(.*?)<\/h1>/);
-
-        if (h1) {
-          const title = h1[1].replace(/<[^>]+>/g, "").trim();
-          titles.push(title);
-        }
-      } catch {}
-    }
-
-    return titles;
-
-  } catch (e) {
-    console.log("取得失敗", e.message);
-    return [];
-  }
-}
-
-/* 重複削除 */
-function dedupe(news) {
-  const seen = new Set();
-  return news.filter(t => {
-    const key = t.slice(0, 30);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  days.forEach((d,i)=>{
+    const div = document.createElement("div");
+    div.className = "header " + (i==0?"sun":i==6?"sat":"week");
+    div.textContent = d;
+    grid.appendChild(div);
   });
-}
 
-/* AI選択 */
-async function pickTop3(news) {
-  if (news.length === 0) return [];
+  const first = new Date(year, month, 1).getDay();
+  const last = new Date(year, month+1, 0).getDate();
 
-  try {
-    const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `
-以下から重要ニュースを3つ選べ。
-番号だけ答えろ。
+  /* 空白 */
+  for(let i=0;i<first;i++){
+    grid.appendChild(document.createElement("div"));
+  }
 
-${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
-`
-            }]
-          }]
-        })
+  for(let d=1; d<=last; d++){
+
+    const cell = document.createElement("div");
+    cell.className = "cell";
+
+    const dateObj = new Date(year, month, d);
+    const dateStr = getJSTDateString(dateObj);
+
+    cell.innerHTML = `<div class="date">${d}</div>`;
+
+    try {
+      const res = await fetch(`./data/${dateStr}.json`);
+      if(res.ok){
+        const data = await res.json();
+
+        if(data.nikkei){
+          const cls = data.nikkei.change_pct >=0 ? "up":"down";
+
+          cell.innerHTML += `
+            <div class="nikkei ${cls}">
+              日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
+            </div>
+          `;
+        }
+
+        if(data.news && data.news.length){
+          cell.innerHTML += "<ul>";
+          data.news.forEach(n=>{
+            cell.innerHTML += `<li>${n.title}</li>`;
+          });
+          cell.innerHTML += "</ul>";
+        }
       }
-    );
+    } catch {}
 
-    const json = await res.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    const nums = text.match(/\d+/g);
-    if (!nums) return [];
-
-    return nums.map(n => news[Number(n)-1]).slice(0,3);
-
-  } catch {
-    return [];
+    grid.appendChild(cell);
   }
 }
 
-/* 日経 */
-async function getNikkei() {
-  const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
-  const meta = res.data.chart.result[0].meta;
-
-  return {
-    close: Math.round(meta.regularMarketPrice),
-    change_pct: Number(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose * 100).toFixed(2))
-  };
+/* 前後移動 */
+function prev(){
+  current.setMonth(current.getMonth()-1);
+  render();
+}
+function next(){
+  current.setMonth(current.getMonth()+1);
+  render();
 }
 
-/* メイン */
-async function main() {
-  const date = getDateJST();
+render();
 
-  let news = await getNews();
-  news = dedupe(news);
-
-  const picked = await pickTop3(news);
-  const nikkei = await getNikkei();
-
-  const finalNews = (picked.length > 0 ? picked : news.slice(0,3)).map(t => ({
-    title: t,
-    summary: ""
-  }));
-
-  const data = {
-    date,
-    nikkei,
-    news: finalNews
-  };
-
-  fs.mkdirSync("./data", { recursive: true });
-  fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
-}
-
-main();
+window.prev = prev;
+window.next = next;
