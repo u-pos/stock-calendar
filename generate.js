@@ -62,20 +62,9 @@ function filterNews(titles) {
     const ng = exclude.some(k => low.includes(k));
 
     // ★結果記事排除（超重要）
-    const isResult =
-     low.includes("stocks edge") ||
-     low.includes("stocks fall") ||
-     low.includes("stocks slip") ||
-     low.includes("shares fall") ||
-     low.includes("shares slip") ||
-     low.includes("futures fall") ||
-     low.includes("futures slip") ||
-     low.includes("markets edge") ||
-     low.includes("markets fall");
-
-    return ok && !ng && !isResult;
-  });
-}
+   const isResult =
+     /(stocks?|shares?|markets?|futures?)/.test(low) &&
+     /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken)/.test(low);
 
 /* =========================
    クラスタリング（超重要）
