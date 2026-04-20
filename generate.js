@@ -32,7 +32,8 @@ async function getNews() {
 function filterNews(titles) {
   const include = [
     "fed","inflation","cpi","rate","war","oil","iran",
-    "middle east","economy"
+    "middle east","economy","bank","central bank",
+    "china","tariff","export","import","gdp","recession"
   ];
 
   const exclude = [
@@ -61,7 +62,7 @@ function filterNews(titles) {
     /(stocks?|shares?|markets?|futures?|equities)/.test(low) &&
     /(fall|fell|slip|slipped|edge|decline|declined|drop|dropped|retreat|weaken|lower)/.test(low);
 
-  return (ok || isTrumpValid) && !ng && !isResult;
+  return (!ng && !isResult) && (ok || isTrumpValid || low.includes("tension"));
 });
 }
 /* ===== 重複統合 ===== */
