@@ -1,94 +1,87 @@
-let current = new Date();
-let cache = {};
+const grid = document.getElementById("grid");
+const title = document.getElementById("title");
 
-function format(d) {
-  return d.toISOString().split("T")[0];
+let current = new Date();
+
+/* JST固定 */
+function getJSTParts(date) {
+  const jst = new Date(date.getTime() + 9*60*60*1000);
+  return {
+    y: jst.getFullYear(),
+    m: jst.getMonth(),
+    d: jst.getDate()
+  };
 }
 
-async function loadMonth() {
-  const grid = document.getElementById("grid");
+function formatDate(y,m,d){
+  return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
 
-  if (!grid) return;
+async function render() {
+  grid.innerHTML = "";
 
-  const y = current.getFullYear();
-  const m = current.getMonth();
+  const {y, m} = getJSTParts(current);
 
-  document.getElementById("title").innerText = `${y}-${m + 1}`;
+  title.textContent = `${y}-${m+1}`;
 
-  const key = `${y}-${m}`;
-  if (cache[key]) {
-    grid.innerHTML = cache[key];
-    return;
-  }
-
-  let html = "";
-
-  // ▼曜日ヘッダー
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  days.forEach((d, i) => {
-    let cls = "week";
-    if (i === 0) cls = "sun";
-    if (i === 6) cls = "sat";
 
-    html += `<div class="cell header ${cls}">${d}</div>`;
+  days.forEach((d,i)=>{
+    const div = document.createElement("div");
+    div.className = "header " + (i==0?"sun":i==6?"sat":"week");
+    div.textContent = d;
+    grid.appendChild(div);
   });
 
-  const first = new Date(y, m, 1);
-  const startDay = first.getDay();
-  const last = new Date(y, m + 1, 0);
+  const first = new Date(y, m, 1).getDay();
+  const last = new Date(y, m+1, 0).getDate();
 
-  // ▼空白
-  for (let i = 0; i < startDay; i++) {
-    html += `<div class="cell"></div>`;
+  for(let i=0;i<first;i++){
+    grid.appendChild(document.createElement("div"));
   }
 
-  for (let i = 1; i <= last.getDate(); i++) {
-    const d = new Date(y, m, i);
-    const dateStr = format(d);
+  for(let d=1; d<=last; d++){
 
-    let data = null;
+    const cell = document.createElement("div");
+    cell.className = "cell";
+
+    const dateStr = formatDate(y,m,d);
+
+    cell.innerHTML = `<div class="date">${d}</div>`;
 
     try {
-      const res = await fetch(`data/${dateStr}.json`);
-      if (res.ok) data = await res.json();
+      const res = await fetch(`./data/${dateStr}.json`);
+      if(res.ok){
+        const data = await res.json();
+
+        if(data.nikkei){
+          const cls = data.nikkei.change_pct >=0 ? "up":"down";
+
+          cell.innerHTML += `
+            <div class="nikkei ${cls}">
+              日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
+            </div>
+          `;
+        }
+
+        if(data.news && data.news.length){
+          cell.innerHTML += "<ul>";
+          data.news.forEach(n=>{
+            cell.innerHTML += `<li>${n.title}</li>`;
+          });
+          cell.innerHTML += "</ul>";
+        }
+      }
     } catch {}
 
-    if (data) {
-      const pct = data.nikkei.change_pct;
-      const cls = pct >= 0 ? "up" : "down";
-
-      html += `
-        <div class="cell">
-          <div class="date">
-            ${i}
-            <span class="nikkei ${cls}">
-              日経${data.nikkei.close}円(${pct}%)
-            </span>
-          </div>
-          <ul>
-            ${data.news.map(n =>
-              `<li title="${n.summary}">${n.title}</li>`
-            ).join("")}
-          </ul>
-        </div>
-      `;
-    } else {
-      html += `<div class="cell"><div class="date">${i}</div></div>`;
-    }
+    grid.appendChild(cell);
   }
-
-  cache[key] = html;
-  grid.innerHTML = html;
 }
 
-function prev() {
-  current.setMonth(current.getMonth() - 1);
-  loadMonth();
-}
+function prev(){ current.setMonth(current.getMonth()-1); render(); }
+function next(){ current.setMonth(current.getMonth()+1); render(); }
 
-function next() {
-  current.setMonth(current.getMonth() + 1);
-  loadMonth();
-}
+render();
 
-loadMonth();
+window.prev = prev;
+window.next = next;
