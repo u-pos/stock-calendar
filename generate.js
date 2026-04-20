@@ -17,63 +17,90 @@ function getDateJST() {
 }
 
 /* =========================
-   RSS取得（最大100件）
+   Investing RSS
 ========================= */
-async function getNewsRaw() {
-  const res = await axios.get(
-    "https://www.investing.com/rss/news_25.rss",
-    { headers: { "User-Agent": "Mozilla/5.0" } }
-  );
+async function getInvesting() {
+  try {
+    const res = await axios.get(
+      "https://www.investing.com/rss/news_25.rss",
+      { headers: { "User-Agent": "Mozilla/5.0" } }
+    );
 
-  const parser = new xml2js.Parser();
-  const parsed = await parser.parseStringPromise(res.data);
+    const parser = new xml2js.Parser();
+    const parsed = await parser.parseStringPromise(res.data);
 
-  const items = parsed.rss.channel[0].item;
+    return parsed.rss.channel[0].item.map(i => i.title[0]);
 
-  return items.map(i => i.title[0]).slice(0, 100);
+  } catch {
+    return [];
+  }
 }
 
 /* =========================
-   フィルタ（重要）
+   NewsAPI
+========================= */
+async function getNewsAPI() {
+  try {
+    const res = await axios.get("https://newsapi.org/v2/everything", {
+      params: {
+        q: "economy OR inflation OR Fed OR war OR oil OR interest rate",
+        language: "en",
+        sortBy: "publishedAt",
+        pageSize: 50,
+        apiKey: process.env.NEWS_API_KEY
+      }
+    });
+
+    return res.data.articles.map(a => a.title);
+
+  } catch {
+    return [];
+  }
+}
+
+/* =========================
+   フィルタ
 ========================= */
 function filterNews(titles) {
   const include = [
-    "fed","rate","inflation","cpi","jobs","unemployment",
-    "central bank","war","conflict","oil","crude",
-    "interest","economy","recession"
+    "fed","rate","inflation","cpi","jobs","war","oil","interest","economy"
   ];
 
   const exclude = [
-    "insider","review","tested","top 10","roundup",
-    "earnings call","product","launch","buy","sell"
+    "insider","review","top 10","roundup","product","buy","sell"
   ];
 
   return titles.filter(t => {
     const low = t.toLowerCase();
-
-    const ok = include.some(k => low.includes(k));
-    const ng = exclude.some(k => low.includes(k));
-
-    return ok && !ng;
+    return include.some(k => low.includes(k)) &&
+           !exclude.some(k => low.includes(k));
   });
 }
 
 /* =========================
-   重複削除
+   同一テーマ削除（重要）
 ========================= */
-function dedupe(news) {
-  const seen = new Set();
+function removeSameTopic(news) {
+  const themes = [];
 
   return news.filter(t => {
-    const key = t.slice(0, 40);
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const key =
+      t.includes("Iran") ? "IRAN" :
+      t.includes("oil") ? "OIL" :
+      t.includes("Fed") ? "FED" :
+      t.includes("inflation") ? "INF" :
+      t.includes("war") ? "WAR" :
+      t.slice(0,20);
+
+    if (themes.includes(key)) return false;
+
+    themes.push(key);
     return true;
   });
 }
 
 /* =========================
-   AI選別（番号のみ）
+   AI選別
 ========================= */
 async function pickTop3(news) {
   if (news.length === 0) return [];
@@ -88,18 +115,12 @@ async function pickTop3(news) {
           contents: [{
             parts: [{
               text: `
-以下のニュースから「市場全体に影響が大きい原因」を3つ選べ。
+以下のニュースから「市場の原因となる重要ニュース」を3つ選べ。
 
 ルール：
-・同じテーマは1つに統合（例：中東情勢は1つ）
-・株価の上昇/下落だけの記事は禁止
-・必ず「原因」を選べ（結果ではなく）
-
-優先順位：
-1. 金利・CPI・雇用
-2. 戦争・地政学
-3. 中央銀行発言
-4. 原油・為替
+・同じテーマは1つにまとめる
+・株価上下だけの記事は禁止
+・必ず原因を選ぶ
 
 番号だけ答えろ（例: 1,3,5）
 
@@ -125,7 +146,7 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
 }
 
 /* =========================
-   日経平均
+   日経
 ========================= */
 async function getNikkei() {
   const res = await axios.get(
@@ -147,11 +168,15 @@ async function getNikkei() {
 async function main() {
   const date = getDateJST();
 
-  let raw = await getNewsRaw();
-  let filtered = filterNews(raw);
-  let unique = dedupe(filtered).slice(0, 30);
+  const a = await getInvesting();
+  const b = await getNewsAPI();
 
-  const selected = await pickTop3(unique);
+  let merged = [...a, ...b];
+
+  merged = filterNews(merged);
+  merged = removeSameTopic(merged).slice(0, 30);
+
+  const selected = await pickTop3(merged);
   const nikkei = await getNikkei();
 
   const news = selected.map(t => ({ title: t }));
