@@ -143,7 +143,8 @@ async function getNikkei() {
 /* ===== メイン ===== */
 async function main() {
   const date = getDateJST();
-
+  const selected = pickTop3(scored);
+  const finalNews = removeDuplicateThemes(selected);
   const titles = await getNews();
   const scored = await scoreNews(titles);
   const selected = pickTop3(scored);
