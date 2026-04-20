@@ -17,12 +17,12 @@ async function getNews() {
 
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-      q: "Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession OR tariff OR China",
-      language: "en",
-      sortBy: "publishedAt",
-      pageSize: 100,
-      apiKey: process.env.NEWS_API_KEY
-    }
+  q: "Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession OR tariff OR China",
+  language: "en",
+  sortBy: "relevancy",
+  pageSize: 100,
+  apiKey: process.env.NEWS_API_KEY
+}
   });
 
   return res.data.articles.map(a => a.title);
