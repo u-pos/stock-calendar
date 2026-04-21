@@ -106,62 +106,12 @@ async function summarizeNews(news) {
     return news.map(t => "■" + t);
   }
 
-  // ① まとめて要約（日本語化）
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `
-以下のニュースを「株価に影響した原因」として日本語1行にまとめよ。
-
-ルール：
-・必ず日本語（英語禁止）
-・短く1行
-・先頭に■
-・結果ではなく原因を書く
-
-JSON配列で返答：
-["■〇〇","■〇〇"]
-
-ニュース：
-${news.join("\n")}
-`
-          }]
-        }]
-      })
-    }
-  );
-
-  const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-  const match = text.match(/\[.*\]/s);
-
-  let result;
-  try {
-    result = JSON.parse(match[0]);
-  } catch {
-    result = news;
-  }
-
   const fixed = [];
 
-  for (let item of result) {
-    // 日本語判定（先頭チェック）
-    const isJP = /^[■\s]*[ぁ-んァ-ン一-龯]/.test(item);
+  for (let item of news) {
 
-    if (isJP) {
-      const clean = item.replace(/^■+/, "").trim();
-      fixed.push("■" + clean);
-      continue;
-    }
-
-    // ② 英語なら強制翻訳（1回目）
-    const trans1 = await fetch(
+    // ★最初から翻訳前提にする（ここが重要）
+    const trans = await fetch(
       "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
       {
         method: "POST",
@@ -170,10 +120,12 @@ ${news.join("\n")}
           contents: [{
             parts: [{
               text: `
-以下を必ず日本語に翻訳し、
-「原因」として1行にまとめよ。
+以下の英文を日本語で「株価に影響した原因」として1行に要約せよ。
 
-英語は禁止。
+ルール：
+・必ず日本語（英語禁止）
+・短く1行
+・先頭に■
 
 ${item}
 `
@@ -183,14 +135,15 @@ ${item}
       }
     );
 
-    const j1 = await trans1.json();
-    let txt = j1?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const j = await trans.json();
+    let txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    let isJP2 = /[ぁ-んァ-ン一-龯]/.test(txt);
+    // ★日本語が含まれているかチェック
+    const hasJP = /[ぁ-んァ-ン一-龯]/.test(txt);
 
-    // ③ まだ英語なら再翻訳（2回目）
-    if (!isJP2) {
-      const trans2 = await fetch(
+    if (!hasJP) {
+      // 再翻訳（強制）
+      const retry = await fetch(
         "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
         {
           method: "POST",
@@ -199,7 +152,7 @@ ${item}
             contents: [{
               parts: [{
                 text: `
-この英文を日本語だけで書き直せ（英語禁止）：
+この英文を日本語だけで書き直せ：
 
 ${item}
 `
@@ -209,13 +162,12 @@ ${item}
         }
       );
 
-      const j2 = await trans2.json();
-      txt = j2?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const r = await retry.json();
+      txt = r?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     }
 
     const clean = txt.replace(/^■+/, "").trim();
 
-    // 最終fallback（それでもダメなら原文）
     fixed.push(clean ? "■" + clean : "■" + item);
   }
 
