@@ -2,8 +2,8 @@ const grid = document.getElementById("grid");
 const title = document.getElementById("title");
 
 let current = new Date();
+const cache = {}; // ★キャッシュ
 
-/* JST固定 */
 function getJSTParts(date) {
   const jst = new Date(date.getTime() + 9*60*60*1000);
   return {
@@ -17,11 +17,25 @@ function formatDate(y,m,d){
   return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
 
+async function loadData(dateStr){
+  if(cache[dateStr]) return cache[dateStr];
+
+  try {
+    const res = await fetch(`./data/${dateStr}.json`);
+    if(res.ok){
+      const data = await res.json();
+      cache[dateStr] = data; // ★保存
+      return data;
+    }
+  } catch {}
+
+  return null;
+}
+
 async function render() {
   grid.innerHTML = "";
 
   const {y, m} = getJSTParts(current);
-
   title.textContent = `${y}-${m+1}`;
 
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -41,7 +55,6 @@ async function render() {
   }
 
   for(let d=1; d<=last; d++){
-
     const cell = document.createElement("div");
     cell.className = "cell";
 
@@ -49,35 +62,26 @@ async function render() {
 
     cell.innerHTML = `<div class="date">${d}</div>`;
 
-    try {
-      const res = await fetch(`./data/${dateStr}.json`);
-      if(res.ok){
-        const data = await res.json();
+    const data = await loadData(dateStr);
 
-        if(data.nikkei){
-          const cls = data.nikkei.change_pct >=0 ? "up":"down";
+    if(data){
+      if(data.nikkei){
+        const cls = data.nikkei.change_pct >=0 ? "up":"down";
 
-          cell.innerHTML += `
-            <div class="nikkei ${cls}">
-              日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
-            </div>
-          `;
-        }
-
-        if(data.news && data.news.length){
-          cell.innerHTML += "<ul>";
-
-          data.news.forEach(n=>{
-            // ★ここで■を付与（今回の修正ポイント）
-            const title = n.title.startsWith("■") ? n.title : "■" + n.title;
-            cell.innerHTML += `<li>${title}</li>`;
-          });
-
-          cell.innerHTML += "</ul>";
-        }
+        cell.innerHTML += `
+          <div class="nikkei ${cls}">
+            日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
+          </div>
+        `;
       }
-    } catch (e) {
-      console.error(e);
+
+      if(data.news && data.news.length){
+        cell.innerHTML += "<ul>";
+        data.news.forEach(n=>{
+          cell.innerHTML += `<li>${n.title}</li>`;
+        });
+        cell.innerHTML += "</ul>";
+      }
     }
 
     grid.appendChild(cell);
@@ -88,6 +92,5 @@ function prev(){ current.setMonth(current.getMonth()-1); render(); }
 function next(){ current.setMonth(current.getMonth()+1); render(); }
 
 render();
-
 window.prev = prev;
 window.next = next;
