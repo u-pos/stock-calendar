@@ -119,18 +119,16 @@ async function summarizeNews(news) {
         contents: [{
           parts: [{
             text: `
-以下のニュースを「原因ベースで日本語1行」に要約せよ。
+以下の英文を必ず日本語に翻訳し、
+さらに「原因として1行で簡潔に」書き直せ。
 
-条件：
-・必ず日本語
-・1行
-・先頭に■
+ルール：
+・必ず日本語（英語は禁止）
+・短く1行
+・先頭に「■」をつける
 
-JSONで返せ：
-["■〇〇"]
-
-ニュース：
-${news.join("\n")}
+入力：
+${t}
 `
           }]
         }]
@@ -182,9 +180,8 @@ ${t}
     );
 
     const j = await trans.json();
-    const txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || t;
-
-    fixed.push("■" + txt.trim());
+    const clean = txt.replace(/^■+/, "").trim();
+    fixed.push("■" + clean);
   }
 
   return fixed;
