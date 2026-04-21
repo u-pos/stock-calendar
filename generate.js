@@ -43,15 +43,18 @@ async function pickImportantNews(titles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「市場を動かした原因」を最大3つ選び、日本語で1行に要約せよ。
+以下のニュースから「株価に影響した原因」を3つ選び、日本語で簡潔に書いてください。
 
-ルール：
 ・必ず日本語
-・最大3件
-・1行ずつ
-・余計な説明禁止
+・3件
+・1行ずつでOK
 
-ニュース一覧：
+例：
+イラン情勢緊張で原油価格上昇
+米インフレ加速で利上げ懸念
+中央銀行の利下げ示唆
+
+ニュース：
 ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
 `
           }]
@@ -65,13 +68,19 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
 
   console.log("AI raw:", text);
 
-  return text
+  let lines = text
     .split("\n")
     .map(t => t.replace(/^[-・\d. ]*/, "").trim())
-    .filter(t => t)
-    .slice(0, 3);
-}
+    .filter(t => t);
 
+  // ★ここ超重要（保険）
+  if (lines.length === 0) {
+    console.log("AI失敗 → fallback");
+    return titles.slice(0, 3);
+  }
+
+  return lines.slice(0, 3);
+}
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
