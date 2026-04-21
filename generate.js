@@ -8,7 +8,7 @@ function getDateJST() {
   return jst.toISOString().split("T")[0];
 }
 
-/* ===== ニュース取得（多めに取る） ===== */
+/* ===== ニュース取得 ===== */
 async function getNews() {
   if (!process.env.NEWS_API_KEY) {
     console.log("NEWS_API_KEY missing");
@@ -17,18 +17,18 @@ async function getNews() {
 
   const res = await axios.get("https://newsapi.org/v2/everything", {
     params: {
-  q: "Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession OR tariff OR China",
-  language: "en",
-  sortBy: "relevancy",
-  pageSize: 100,
-  apiKey: process.env.NEWS_API_KEY
-}
+      q: "Fed OR inflation OR CPI OR interest rate OR oil OR Iran OR Middle East OR central bank OR recession OR tariff OR China",
+      language: "en",
+      sortBy: "relevancy",
+      pageSize: 100,
+      apiKey: process.env.NEWS_API_KEY
+    }
   });
 
   return res.data.articles.map(a => a.title);
 }
 
-/* ===== AIでスコア評価 ===== */
+/* ===== AIスコア ===== */
 async function scoreNews(titles) {
   if (!process.env.GEMINI_API_KEY || titles.length === 0) {
     return titles.slice(0, 3).map(t => ({ title: t, score: 0.5 }));
@@ -43,33 +43,12 @@ async function scoreNews(titles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースタイトルを評価してください。
+以下のニュースから「市場を動かした原因」をスコア化せよ。
 
-目的：
-「その日の株価に影響した原因」を特定する
+JSONで返答：
+[{ "i":1, "score":0.9 }]
 
-評価基準：
-・その日の市場を動かした可能性（0〜1）
-・原因ニュースか（結果や解説は低評価）
-・長期テーマや雑談は低評価
-
-最優先：
-・地政学（戦争・中東・原油）
-・金利・インフレ・中央銀行
-・為替・エネルギー
-
-低評価：
-・AIやテックの長期テーマ
-・個別企業ニュース
-・雑談・評論・社会ニュース
-
-必ずJSONで返答：
-[
- { "i":1, "score":0.9 },
- { "i":2, "score":0.1 }
-]
-
-ニュース一覧：
+ニュース：
 ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
 `
           }]
@@ -84,32 +63,49 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
   const match = text.match(/\[.*\]/s);
   if (!match) return titles.map(t => ({ title: t, score: 0 }));
 
-  let scores;
   try {
-    scores = JSON.parse(match[0]);
+    const scores = JSON.parse(match[0]);
+    return scores.map(s => ({
+      title: titles[s.i - 1],
+      score: s.score
+    }));
   } catch {
     return titles.map(t => ({ title: t, score: 0 }));
   }
-
-  return scores.map(s => ({
-    title: titles[s.i - 1],
-    score: s.score
-  }));
 }
 
-/* ===== 上位3件抽出 ===== */
+/* ===== 上位抽出 ===== */
 function pickTop3(scored) {
   return scored
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
+    .slice(0, 5) // ←少し多めに
     .map(x => x.title);
 }
+
+/* ===== 重複排除 ===== */
+function removeDuplicateThemes(news) {
+  const seen = new Set();
+
+  return news.filter(t => {
+    const low = t.toLowerCase();
+    let key = "other";
+
+    if (low.includes("iran") || low.includes("oil") || low.includes("energy")) key = "energy";
+    else if (low.includes("inflation")) key = "inflation";
+    else if (low.includes("rate") || low.includes("bank")) key = "rate";
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/* ===== 要約＆翻訳（完全版） ===== */
 async function summarizeNews(news) {
   if (!process.env.GEMINI_API_KEY || news.length === 0) {
     return news.map(t => "■" + t);
   }
 
-  // ① まず要約
   const res = await fetch(
     "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
     {
@@ -119,16 +115,19 @@ async function summarizeNews(news) {
         contents: [{
           parts: [{
             text: `
-以下の英文を必ず日本語に翻訳し、
-さらに「原因として1行で簡潔に」書き直せ。
+以下のニュースを日本語で「原因として1行」にまとめよ。
 
 ルール：
-・必ず日本語（英語は禁止）
-・短く1行
-・先頭に「■」をつける
+・必ず日本語
+・英語禁止
+・短く
+・先頭に■
 
-入力：
-${t}
+JSONで返せ：
+["■〇〇"]
+
+ニュース：
+${news.join("\n")}
 `
           }]
         }]
@@ -145,21 +144,20 @@ ${t}
   try {
     result = JSON.parse(match[0]);
   } catch {
-    result = news.map(t => t);
+    result = news;
   }
 
-  // ② 日本語チェック＆強制翻訳
   const fixed = [];
 
-  for (let t of result) {
-　　const isJapanese = /^[■\s]*[ぁ-んァ-ン一-龯]/.test(t);
+  for (let item of result) {
+    const isJP = /^[■\s]*[ぁ-んァ-ン一-龯]/.test(item);
 
-    if (isJapanese) {
-      fixed.push(t);
+    if (isJP) {
+      fixed.push(item);
       continue;
     }
 
-    // ★ここが本質：英語なら再翻訳
+    // 英語なら強制翻訳
     const trans = await fetch(
       "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
       {
@@ -169,9 +167,9 @@ ${t}
           contents: [{
             parts: [{
               text: `
-以下を日本語で短く要約し直せ：
+以下を日本語で1行に要約せよ：
 
-${t}
+${item}
 `
             }]
           }]
@@ -180,33 +178,15 @@ ${t}
     );
 
     const j = await trans.json();
+    const txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || item;
     const clean = txt.replace(/^■+/, "").trim();
+
     fixed.push("■" + clean);
   }
 
-  return fixed;
+  return fixed.slice(0, 3);
 }
-function removeDuplicateThemes(news) {
-  const seen = new Set();
 
-  return news.filter(t => {
-    const low = t.toLowerCase();
-
-    let key = "other";
-
-    if (low.includes("iran") || low.includes("oil") || low.includes("energy")) {
-      key = "energy-war";
-    } else if (low.includes("inflation")) {
-      key = "inflation";
-    } else if (low.includes("interest") || low.includes("bank")) {
-      key = "rate";
-    }
-
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
@@ -229,16 +209,17 @@ async function main() {
   const titles = await getNews();
   const scored = await scoreNews(titles);
 
-  const selected = pickTop3(scored);
-  const finalNews = removeDuplicateThemes(selected);
-  const summarized = await summarizeNews(finalNews);
+  const picked = pickTop3(scored);
+  const unique = removeDuplicateThemes(picked);
+  const summarized = await summarizeNews(unique);
+
   const nikkei = await getNikkei();
 
-const data = {
-  date,
-  nikkei,
-  news: summarized.map(t => ({ title: t }))
-};
+  const data = {
+    date,
+    nikkei,
+    news: summarized.map(t => ({ title: t }))
+  };
 
   fs.mkdirSync("./data", { recursive: true });
   fs.writeFileSync(`./data/${date}.json`, JSON.stringify(data, null, 2));
