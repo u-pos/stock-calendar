@@ -43,16 +43,18 @@ async function pickImportantNews(titles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「株価に影響した原因」を3つ選び、日本語で簡潔に書いてください。
+次のニュースの中から、株価に影響した重要なニュースを3つ選び、
+日本語でわかりやすく説明してください。
 
-・必ず日本語
-・3件
-・1行ずつでOK
+条件：
+・3つ選ぶ
+・日本語で書く
+・短めでOK
 
 例：
-イラン情勢緊張で原油価格上昇
+イラン情勢悪化で原油価格上昇
 米インフレ加速で利上げ懸念
-中央銀行の利下げ示唆
+中央銀行が金融緩和を示唆
 
 ニュース：
 ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
@@ -73,7 +75,7 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
     .map(t => t.replace(/^[-・\d. ]*/, "").trim())
     .filter(t => t);
 
-  // ★ここ超重要（保険）
+  // fallback
   if (lines.length === 0) {
     console.log("AI失敗 → fallback");
     return titles.slice(0, 3);
