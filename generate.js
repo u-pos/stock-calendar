@@ -151,7 +151,7 @@ ${news.join("\n")}
 
   for (let item of result) {
     const isJP = /^[■\s]*[ぁ-んァ-ン一-龯]/.test(item);
-
+    
     if (isJP) {
       fixed.push(item);
       continue;
@@ -213,8 +213,6 @@ ${item}
 
   fixed.push(clean2 ? "■" + clean2 : "■翻訳失敗");
 }
-  }
-
   return fixed.slice(0, 3);
 }
 
