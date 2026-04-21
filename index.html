@@ -25,82 +25,14 @@ body {
   grid-template-columns: repeat(7, 1fr);
   height:calc(100vh - 60px);
 }
-#grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-}
 
 /* 曜日 */
 .header {
-  height: 30px;           /* ←最小化 */
-  font-size: 12px;
+  height:28px;
+  font-size:12px;
   display:flex;
   align-items:center;
   justify-content:center;
-  background:#eee;
-}
-
-/* セル */
-.cell {
-  height: 120px;          /* ←固定で均等 */
-  border: 1px solid #ccc;
-  padding: 4px;
-  overflow: hidden;       /* ←はみ出し防止 */
-  display:flex;
-  flex-direction: column;
-}
-
-/* 日付 */
-.date {
-  font-size: 12px;
-  font-weight: bold;
-}
-
-/* 日経 */
-.nikkei {
-  font-size: 11px;
-}
-.nikkei.up { color: red; }
-.nikkei.down { color: blue; }
-
-/* ニュース */
-ul {
-  margin: 2px 0 0 0;
-  padding-left: 14px;
-  font-size: 11px;
-  overflow: hidden;
-}
-
-li {
-  line-height: 1.2;
-}
-/* セル */
-.cell {
-  border:1px solid #ccc;
-  padding:4px;
-  font-size:12px;
-  overflow:hidden;
-}
-
-/* 日付 */
-.date {
-  font-weight:bold;
-}
-
-/* 日経表示 */
-.nikkei {
-  font-size:11px;
-}
-
-/* 上げ下げ */
-.up { color:green; }
-.down { color:red; }
-
-/* 曜日ヘッダー */
-.header {
-  font-size:11px;
-  text-align:center;
-  padding:2px 0;
   font-weight:bold;
 }
 
@@ -109,9 +41,44 @@ li {
 .sat { background:#dde5ff; }
 .week { background:#eeeeee; }
 
+/* セル */
+.cell {
+  height:120px;
+  border:1px solid #ccc;
+  padding:4px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+/* 日付 */
+.date {
+  font-size:12px;
+  font-weight:bold;
+}
+
+/* 日経 */
+.nikkei {
+  font-size:13px;
+  font-weight:bold;
+}
+
+/* 上げ下げ */
+.up { color:green; }
+.down { color:red; }
+
+/* ニュース */
 ul {
-  padding-left:12px;
-  margin:2px 0;
+  margin:2px 0 0 0;
+  padding-left:14px;
+  font-size:11px;
+}
+
+li {
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 </style>
 </head>
