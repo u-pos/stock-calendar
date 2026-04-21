@@ -66,13 +66,19 @@ async function render() {
 
         if(data.news && data.news.length){
           cell.innerHTML += "<ul>";
+
           data.news.forEach(n=>{
-            cell.innerHTML += `<li>${n.title}</li>`;
+            // ★ここで■を付与（今回の修正ポイント）
+            const title = n.title.startsWith("■") ? n.title : "■" + n.title;
+            cell.innerHTML += `<li>${title}</li>`;
           });
+
           cell.innerHTML += "</ul>";
         }
       }
-    } catch {}
+    } catch (e) {
+      console.error(e);
+    }
 
     grid.appendChild(cell);
   }
