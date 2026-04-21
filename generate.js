@@ -103,14 +103,12 @@ function removeDuplicateThemes(news) {
 /* ===== 要約＆翻訳（完全版） ===== */
 async function summarizeNews(news) {
   if (!process.env.GEMINI_API_KEY || news.length === 0) {
-    return news.map(t => "■" + t);
+    return news;
   }
 
   const fixed = [];
 
   for (let item of news) {
-
-    // ★最初から翻訳前提にする（ここが重要）
     const trans = await fetch(
       "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
       {
@@ -123,9 +121,8 @@ async function summarizeNews(news) {
 以下の英文を日本語で「株価に影響した原因」として1行に要約せよ。
 
 ルール：
-・必ず日本語（英語禁止）
+・必ず日本語
 ・短く1行
-・先頭に■
 
 ${item}
 `
@@ -138,11 +135,9 @@ ${item}
     const j = await trans.json();
     let txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // ★日本語が含まれているかチェック
     const hasJP = /[ぁ-んァ-ン一-龯]/.test(txt);
 
     if (!hasJP) {
-      // 再翻訳（強制）
       const retry = await fetch(
         "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
         {
@@ -166,9 +161,7 @@ ${item}
       txt = r?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     }
 
-    const clean = txt.replace(/^■+/, "").trim();
-
-    fixed.push(clean ? "■" + clean : "■" + item);
+    fixed.push(txt.trim() || item);
   }
 
   return fixed.slice(0, 3);
