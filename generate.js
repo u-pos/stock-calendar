@@ -43,10 +43,15 @@ async function scoreNews(titles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「市場を動かした原因」をスコア化せよ。
+以下のニュースから「市場を動かした原因」を評価し、JSONのみで返せ。
 
-JSONで返答：
-[{ "i":1, "score":0.9 }]
+【絶対ルール】
+・説明文禁止
+・コードブロック禁止
+・JSON配列のみ出力
+
+例：
+[{"i":1,"score":0.9}]
 
 ニュース：
 ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
@@ -58,20 +63,23 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
   );
 
   const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  let text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  const match = text.match(/\[.*\]/s);
-  if (!match) return titles.map(t => ({ title: t, score: 0 }));
+  // ★ここが超重要（余計な記号除去）
+  text = text.replace(/```json|```/g, "").trim();
 
+  let scores;
   try {
-    const scores = JSON.parse(match[0]);
-    return scores.map(s => ({
-      title: titles[s.i - 1],
-      score: s.score
-    }));
-  } catch {
+    scores = JSON.parse(text);
+  } catch (e) {
+    console.log("JSON parse失敗:", text);
     return titles.map(t => ({ title: t, score: 0 }));
   }
+
+  return scores.map(s => ({
+    title: titles[s.i - 1],
+    score: s.score
+  }));
 }
 
 /* ===== 上位抽出 ===== */
