@@ -178,10 +178,41 @@ ${item}
     );
 
     const j = await trans.json();
-    const txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || item;
-    const clean = txt.replace(/^■+/, "").trim();
+    const txt = j?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    fixed.push("■" + clean);
+const isJP = /[ぁ-んァ-ン一-龯]/.test(txt);
+
+if (isJP) {
+  const clean = txt.replace(/^■+/, "").trim();
+  fixed.push("■" + clean);
+} else {
+  // ★翻訳失敗 → 強制再翻訳（2回目）
+  const retry = await fetch(
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `
+以下を必ず日本語に翻訳しろ（英語禁止）：
+
+${item}
+`
+          }]
+        }]
+      })
+    }
+  );
+
+  const r = await retry.json();
+  const txt2 = r?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+  const clean2 = txt2.replace(/^■+/, "").trim();
+
+  fixed.push(clean2 ? "■" + clean2 : "■翻訳失敗");
+}
   }
 
   return fixed.slice(0, 3);
