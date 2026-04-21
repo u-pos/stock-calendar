@@ -102,7 +102,7 @@ async function main() {
 
   console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NG");
 
-  const titles = await getNews();
+  const titles = (await getNews()).slice(0, 15);
 
   console.log("ニュース件数:", titles.length);
 
