@@ -56,6 +56,7 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
   );
 
   const json = await res.json();
+  console.log("FULL RESPONSE:", JSON.stringify(json, null, 2));
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   console.log("AI raw:", text);
