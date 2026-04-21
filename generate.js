@@ -43,14 +43,14 @@ async function scoreNews(titles) {
         contents: [{
           parts: [{
             text: `
-以下のニュースから「市場を動かした原因」を評価し、JSONのみで返せ。
+以下のニュースを評価し、「JSON配列のみ」で返せ。
 
-【絶対ルール】
-・説明文禁止
+絶対ルール：
+・説明禁止
 ・コードブロック禁止
-・JSON配列のみ出力
+・JSONだけ出力
 
-例：
+形式：
 [{"i":1,"score":0.9}]
 
 ニュース：
@@ -65,14 +65,18 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
   const json = await res.json();
   let text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-  // ★ここが超重要（余計な記号除去）
-  text = text.replace(/```json|```/g, "").trim();
+  // ★余計な部分削除（最重要）
+  text = text
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .replace(/^[^\[]*/, "")   // 最初の[まで削除
+    .replace(/[^\]]*$/, "");  // 最後の]以降削除
 
   let scores;
   try {
     scores = JSON.parse(text);
   } catch (e) {
-    console.log("JSON parse失敗:", text);
+    console.log("JSONパース失敗 raw:", text);
     return titles.map(t => ({ title: t, score: 0 }));
   }
 
@@ -81,7 +85,6 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
     score: s.score
   }));
 }
-
 /* ===== 上位抽出 ===== */
 function pickTop3(scored) {
   return scored
