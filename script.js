@@ -2,23 +2,28 @@ const grid = document.getElementById("grid");
 const title = document.getElementById("title");
 
 let current = new Date();
+
+/* キャッシュ */
 const cache = {};
 
 /* JST */
 function getJSTParts(date) {
   const jst = new Date(date.getTime() + 9*60*60*1000);
-  return { y: jst.getFullYear(), m: jst.getMonth(), d: jst.getDate() };
+  return {
+    y: jst.getFullYear(),
+    m: jst.getMonth(),
+    d: jst.getDate()
+  };
 }
 
 function formatDate(y,m,d){
   return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
 
-/* ★一括ロード */
+/* ★月単位で先読み（高速化） */
 async function preloadMonth(y, m){
-  const promises = [];
-
   const last = new Date(y, m+1, 0).getDate();
+  const promises = [];
 
   for(let d=1; d<=last; d++){
     const dateStr = formatDate(y,m,d);
@@ -43,7 +48,7 @@ async function render() {
   const {y, m} = getJSTParts(current);
   title.textContent = `${y}-${m+1}`;
 
-  await preloadMonth(y,m); // ★ここが超重要
+  await preloadMonth(y, m);
 
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -62,6 +67,7 @@ async function render() {
   }
 
   for(let d=1; d<=last; d++){
+
     const cell = document.createElement("div");
     cell.className = "cell";
 
@@ -75,7 +81,7 @@ async function render() {
 
     if(data){
 
-      // ★平日のみ日経表示
+      /* ★日経（平日のみ） */
       if(data.nikkei && !isWeekend){
         const up = data.nikkei.change_pct >= 0;
 
@@ -86,13 +92,18 @@ async function render() {
         `;
       }
 
-      // ★ニュースは土日も表示
-      if(data.news){
-        cell.innerHTML += "<ul>";
-        data.news.slice(0,2).forEach(n=>{
-          cell.innerHTML += `<li title="${n.title}">${n.title}</li>`;
-        });
-        cell.innerHTML += "</ul>";
+      /* ★ニュース（1行連結表示） */
+      if(data.news && data.news.length){
+
+        const text = data.news
+          .map(n => n.title)
+          .join("　"); // ←全角スペースで見やすく
+
+        cell.innerHTML += `
+          <div class="news" title="${text}">
+            ${text}
+          </div>
+        `;
       }
     }
 
@@ -100,9 +111,18 @@ async function render() {
   }
 }
 
-function prev(){ current.setMonth(current.getMonth()-1); render(); }
-function next(){ current.setMonth(current.getMonth()+1); render(); }
+/* 月移動 */
+function prev(){
+  current.setMonth(current.getMonth()-1);
+  render();
+}
+
+function next(){
+  current.setMonth(current.getMonth()+1);
+  render();
+}
 
 render();
+
 window.prev = prev;
 window.next = next;
