@@ -2,41 +2,48 @@ const grid = document.getElementById("grid");
 const title = document.getElementById("title");
 
 let current = new Date();
-const cache = {}; // ★キャッシュ
+const cache = {};
 
+/* JST */
 function getJSTParts(date) {
   const jst = new Date(date.getTime() + 9*60*60*1000);
-  return {
-    y: jst.getFullYear(),
-    m: jst.getMonth(),
-    d: jst.getDate()
-  };
+  return { y: jst.getFullYear(), m: jst.getMonth(), d: jst.getDate() };
 }
 
 function formatDate(y,m,d){
   return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
 
-async function loadData(dateStr){
-  if(cache[dateStr]) return cache[dateStr];
+/* ★一括ロード */
+async function preloadMonth(y, m){
+  const promises = [];
 
-  try {
-    const res = await fetch(`./data/${dateStr}.json`);
-    if(res.ok){
-      const data = await res.json();
-      cache[dateStr] = data; // ★保存
-      return data;
-    }
-  } catch {}
+  const last = new Date(y, m+1, 0).getDate();
 
-  return null;
+  for(let d=1; d<=last; d++){
+    const dateStr = formatDate(y,m,d);
+
+    if(cache[dateStr]) continue;
+
+    promises.push(
+      fetch(`./data/${dateStr}.json`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => { if(data) cache[dateStr] = data; })
+        .catch(()=>{})
+    );
+  }
+
+  await Promise.all(promises);
 }
 
+/* 描画 */
 async function render() {
   grid.innerHTML = "";
 
   const {y, m} = getJSTParts(current);
   title.textContent = `${y}-${m+1}`;
+
+  await preloadMonth(y,m); // ★ここが超重要
 
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -59,26 +66,31 @@ async function render() {
     cell.className = "cell";
 
     const dateStr = formatDate(y,m,d);
+    const data = cache[dateStr];
+
+    const dow = new Date(y,m,d).getDay();
+    const isWeekend = (dow === 0 || dow === 6);
 
     cell.innerHTML = `<div class="date">${d}</div>`;
 
-    const data = await loadData(dateStr);
-
     if(data){
-      if(data.nikkei){
-        const cls = data.nikkei.change_pct >=0 ? "up":"down";
+
+      // ★平日のみ日経表示
+      if(data.nikkei && !isWeekend){
+        const up = data.nikkei.change_pct >= 0;
 
         cell.innerHTML += `
-          <div class="nikkei ${cls}">
-            日経${data.nikkei.close}円(${data.nikkei.change_pct}%)
+          <div class="nikkei ${up ? "up":"down"}">
+            ${data.nikkei.close}円(${up?"+":""}${data.nikkei.change_pct}%)
           </div>
         `;
       }
 
-      if(data.news && data.news.length){
+      // ★ニュースは土日も表示
+      if(data.news){
         cell.innerHTML += "<ul>";
-        data.news.forEach(n=>{
-          cell.innerHTML += `<li>${n.title}</li>`;
+        data.news.slice(0,2).forEach(n=>{
+          cell.innerHTML += `<li title="${n.title}">${n.title}</li>`;
         });
         cell.innerHTML += "</ul>";
       }
