@@ -28,14 +28,14 @@ async function getNews() {
   return res.data.articles.map(a => a.title);
 }
 
-/* ===== AIで重要ニュース抽出（シンプル版） ===== */
-async function pickImportantNews(titles) {
+/* ===== AI要約（最重要） ===== */
+async function summarizeNews(titles) {
   if (!process.env.GEMINI_API_KEY || titles.length === 0) {
-    return titles.slice(0, 3);
+    return [];
   }
 
-const res = await fetch(
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,8 +43,19 @@ const res = await fetch(
         contents: [{
           parts: [{
             text: `
-次のニュースの中から、株価に影響した重要なニュースを3つ選び、日本語でわかりやすく説明してください。
+以下のニュースから「株価に影響した原因」を3つ選び、
+必ず日本語で1行に要約せよ。
 
+【絶対ルール】
+・JSON配列のみで返答
+・解説禁止
+・英語禁止
+・必ず3件
+・各要約は30文字以内
+・重要度の高い順
+
+【形式】
+["■要約1","■要約2","■要約3"]
 
 ニュース：
 ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
@@ -56,24 +67,31 @@ ${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
   );
 
   const json = await res.json();
+
+  // デバッグ（残してOK）
   console.log("FULL RESPONSE:", JSON.stringify(json, null, 2));
+
   const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
   console.log("AI raw:", text);
 
-  let lines = text
-    .split("\n")
-    .map(t => t.replace(/^[-・\d. ]*/, "").trim())
-    .filter(t => t);
+  // JSON部分だけ抜く
+  const match = text.match(/\[.*\]/s);
 
-  // fallback
-  if (lines.length === 0) {
-    console.log("AI失敗 → fallback");
-    return titles.slice(0, 3);
+  if (!match) {
+    console.log("AIフォーマット崩壊");
+    return [];
   }
 
-  return lines.slice(0, 3);
+  try {
+    const arr = JSON.parse(match[0]);
+    return arr.slice(0, 3);
+  } catch (e) {
+    console.log("JSONパース失敗");
+    return [];
+  }
 }
+
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
@@ -93,20 +111,17 @@ async function getNikkei() {
 async function main() {
   const date = getDateJST();
 
-  console.log("GEMINI:", process.env.GEMINI_API_KEY ? "OK" : "NG");
-
-  const titles = (await getNews()).slice(0, 15);
-
+  const titles = await getNews();
   console.log("ニュース件数:", titles.length);
 
-  const selected = await pickImportantNews(titles);
+  const summarized = await summarizeNews(titles);
 
   const nikkei = await getNikkei();
 
   const data = {
     date,
     nikkei,
-    news: selected.map(t => ({ title: t }))
+    news: summarized.map(t => ({ title: t }))
   };
 
   fs.mkdirSync("./data", { recursive: true });
