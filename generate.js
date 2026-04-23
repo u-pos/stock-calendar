@@ -116,20 +116,34 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
     return news.slice(0, 3).map(t => "■" + t);
   }
 }
-function removeDuplicateThemes(news) {
+function removeDuplicateThemes(news, original) {
   const seen = new Set();
+  const result = [];
 
-  return news.filter(t => {
+  for (let t of news) {
     let key = "other";
 
     if (t.includes("イラン") || t.includes("戦争")) key = "war";
     else if (t.includes("インフレ")) key = "inflation";
     else if (t.includes("利上げ")) key = "rate";
 
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(t);
+    }
+  }
+
+  // ★不足分を補充
+  let i = 0;
+  while (result.length < 3 && i < original.length) {
+    const fallback = "■" + original[i];
+    if (!result.includes(fallback)) {
+      result.push(fallback);
+    }
+    i++;
+  }
+
+  return result.slice(0,3);
 }
 /* ===== 日経 ===== */
 async function getNikkei() {
@@ -148,6 +162,7 @@ async function getNikkei() {
 
 /* ===== メイン ===== */
 /* ===== メイン ===== */
+/* ===== メイン ===== */
 async function main() {
   const date = getDateJST();
 
@@ -157,17 +172,20 @@ async function main() {
   // ② AI要約
   const summarized = await summarizeNews(titles);
 
-  // ③ ★重複除去（ここが追加部分）
-  const final = removeDuplicateThemes(summarized);
+  // ③ 重複除去＋不足分補充（removeDuplicateThemesは別途定義済み前提）
+  const final = removeDuplicateThemes(summarized, titles);
 
-  // ④ 日経取得
+  // ④ ■を必ず付与（ここで統一）
+  const cleaned = final.map(t => t.startsWith("■") ? t : "■" + t);
+
+  // ⑤ 日経取得
   const nikkei = await getNikkei();
 
-  // ⑤ JSON生成
+  // ⑥ JSON生成（★ここで cleaned を使う）
   const data = {
     date,
     nikkei,
-    news: final.map(t => ({ title: t })) // ←ここ重要（final使う）
+    news: cleaned.map(t => ({ title: t }))
   };
 
   fs.mkdirSync("./data", { recursive: true });
