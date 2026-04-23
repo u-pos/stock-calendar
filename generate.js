@@ -116,6 +116,21 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
     return news.slice(0, 3).map(t => "■" + t);
   }
 }
+function removeDuplicateThemes(news) {
+  const seen = new Set();
+
+  return news.filter(t => {
+    let key = "other";
+
+    if (t.includes("イラン") || t.includes("戦争")) key = "war";
+    else if (t.includes("インフレ")) key = "inflation";
+    else if (t.includes("利上げ")) key = "rate";
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
@@ -132,20 +147,27 @@ async function getNikkei() {
 }
 
 /* ===== メイン ===== */
+/* ===== メイン ===== */
 async function main() {
   const date = getDateJST();
 
+  // ① ニュース取得
   const titles = await getNews();
-  console.log("ニュース件数:", titles.length);
 
+  // ② AI要約
   const summarized = await summarizeNews(titles);
 
+  // ③ ★重複除去（ここが追加部分）
+  const final = removeDuplicateThemes(summarized);
+
+  // ④ 日経取得
   const nikkei = await getNikkei();
 
+  // ⑤ JSON生成
   const data = {
     date,
     nikkei,
-    news: summarized.map(t => ({ title: t }))
+    news: final.map(t => ({ title: t })) // ←ここ重要（final使う）
   };
 
   fs.mkdirSync("./data", { recursive: true });
