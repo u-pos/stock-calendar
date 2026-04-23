@@ -94,7 +94,37 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
     return fallbackJP(news);
   }
 }
+/* ===== 重複除去＋不足補充（完全版） ===== */
+function removeDuplicateThemes(news, original) {
+  const seen = new Set();
+  const result = [];
 
+  for (let t of news) {
+    let key = "other";
+
+    if (t.includes("イラン") || t.includes("戦争")) key = "war";
+    else if (t.includes("インフレ")) key = "inflation";
+    else if (t.includes("利上げ") || t.includes("金利")) key = "rate";
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(t);
+    }
+  }
+
+  // ★不足分を元ニュースから補充
+  let i = 0;
+  while (result.length < 3 && i < original.length) {
+    const fallback = simpleJP(original[i]) || null;
+
+    if (fallback && !result.includes(fallback)) {
+      result.push(fallback);
+    }
+    i++;
+  }
+
+  return result.slice(0, 3);
+}
 /* ===== fallback（日本語強制） ===== */
 function fallbackJP(news) {
   return news
@@ -136,8 +166,6 @@ async function getNikkei() {
   };
 }
 
-/* ===== メイン ===== */
-/* ===== メイン ===== */
 /* ===== メイン ===== */
 async function main() {
   const date = getDateJST();
