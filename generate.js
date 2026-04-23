@@ -29,69 +29,93 @@ async function getNews() {
 }
 
 /* ===== AI要約（最重要） ===== */
-async function summarizeNews(titles) {
-  if (!process.env.GEMINI_API_KEY || titles.length === 0) {
-    return [];
-  }
-
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `
-以下のニュースから「株価に影響した原因」を3つ選び、
-必ず日本語で1行に要約せよ。
-
-【絶対ルール】
-・JSON配列のみで返答
-・解説禁止
-・英語禁止
-・必ず3件
-・各要約は30文字以内
-・重要度の高い順
-
-【形式】
-["■要約1","■要約2","■要約3"]
-
-ニュース：
-${titles.map((t,i)=>`${i+1}. ${t}`).join("\n")}
-`
-          }]
-        }]
-      })
-    }
-  );
-
-  const json = await res.json();
-
-  // デバッグ（残してOK）
-  console.log("FULL RESPONSE:", JSON.stringify(json, null, 2));
-
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-  console.log("AI raw:", text);
-
-  // JSON部分だけ抜く
-  const match = text.match(/\[.*\]/s);
-
-  if (!match) {
-    console.log("AIフォーマット崩壊");
-    return [];
+/* ===== 要約＆翻訳（完全安定版） ===== */
+async function summarizeNews(news) {
+  if (!process.env.GEMINI_API_KEY || news.length === 0) {
+    return news.slice(0, 3).map(t => "■" + t);
   }
 
   try {
-    const arr = JSON.parse(match[0]);
-    return arr.slice(0, 3);
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `
+以下のニュースから「株価に影響した原因」を3つ選び、日本語で短く1行に要約せよ。
+
+ルール：
+・必ず日本語
+・1行
+・必ず3件
+・JSON配列のみで返す（説明禁止）
+
+例：
+["■原油高でインフレ加速","■利上げ観測で株下落","■戦争リスクで市場不安"]
+
+ニュース：
+${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
+`
+            }]
+          }]
+        })
+      }
+    );
+
+    const json = await res.json();
+
+    console.log("FULL RESPONSE:", JSON.stringify(json, null, 2));
+
+    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    console.log("AI raw:", text);
+
+    const match = text.match(/\[.*\]/s);
+
+    /* ===== フォーマット崩壊 ===== */
+    if (!match) {
+      console.log("AIフォーマット崩壊 → fallback");
+      return news.slice(0, 3).map(t => "■" + t);
+    }
+
+    let arr;
+
+    try {
+      arr = JSON.parse(match[0]);
+    } catch (e) {
+      console.log("JSONパース失敗 → fallback");
+      return news.slice(0, 3).map(t => "■" + t);
+    }
+
+    /* ===== 空配列対策 ===== */
+    if (!Array.isArray(arr) || arr.length === 0) {
+      console.log("AI空配列 → fallback");
+      return news.slice(0, 3).map(t => "■" + t);
+    }
+
+    /* ===== 日本語チェック ===== */
+    const hasJP = (s) => /[ぁ-んァ-ン一-龯]/.test(s);
+
+    const cleaned = arr
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    /* 日本語じゃない場合 fallback */
+    if (!cleaned.some(hasJP)) {
+      console.log("日本語なし → fallback");
+      return news.slice(0, 3).map(t => "■" + t);
+    }
+
+    return cleaned.slice(0, 3);
+
   } catch (e) {
-    console.log("JSONパース失敗");
-    return [];
+    console.log("APIエラー → fallback", e);
+    return news.slice(0, 3).map(t => "■" + t);
   }
 }
-
 /* ===== 日経 ===== */
 async function getNikkei() {
   const res = await axios.get("https://query1.finance.yahoo.com/v8/finance/chart/^N225");
