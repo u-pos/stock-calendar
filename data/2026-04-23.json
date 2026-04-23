@@ -1,15 +1,18 @@
 {
   "date": "2026-04-23",
   "nikkei": {
-    "close": 59567,
-    "change_pct": -0.03
+    "close": 59497,
+    "change_pct": -0.15
   },
   "news": [
     {
-      "title": "イラン戦争による原油高とインフレ加速"
+      "title": "■イラン戦争による原油価格高騰"
     },
     {
-      "title": "利上げ観測を巡る市場の思惑"
+      "title": "■インフレ加速と利上げ観測"
+    },
+    {
+      "title": "■From Epstein to sock puppets: Key takeaways from Kevin Warsh's Fed confirmation hearing"
     }
   ]
 }
