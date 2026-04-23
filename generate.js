@@ -30,9 +30,10 @@ async function getNews() {
 
 /* ===== AI要約（最重要） ===== */
 /* ===== 要約＆翻訳（完全安定版） ===== */
+/* ===== 要約＆翻訳（英語排除版） ===== */
 async function summarizeNews(news) {
   if (!process.env.GEMINI_API_KEY || news.length === 0) {
-    return news.slice(0, 3).map(t => "■" + t);
+    return fallbackJP(news);
   }
 
   try {
@@ -45,13 +46,13 @@ async function summarizeNews(news) {
           contents: [{
             parts: [{
               text: `
-以下のニュースから「株価に影響した原因」を3つ選び、日本語で短く1行に要約せよ。
+以下のニュースから「株価に影響した原因」を3つ選び、日本語で1行に要約せよ。
 
 ルール：
 ・必ず日本語
-・1行
 ・必ず3件
-・JSON配列のみで返す（説明禁止）
+・JSON配列のみ
+・英語禁止
 
 例：
 ["■原油高でインフレ加速","■利上げ観測で株下落","■戦争リスクで市場不安"]
@@ -66,84 +67,59 @@ ${news.map((n,i)=>`${i+1}. ${n}`).join("\n")}
     );
 
     const json = await res.json();
-
-    console.log("FULL RESPONSE:", JSON.stringify(json, null, 2));
-
     const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    console.log("AI raw:", text);
-
     const match = text.match(/\[.*\]/s);
-
-    /* ===== フォーマット崩壊 ===== */
-    if (!match) {
-      console.log("AIフォーマット崩壊 → fallback");
-      return news.slice(0, 3).map(t => "■" + t);
-    }
+    if (!match) return fallbackJP(news);
 
     let arr;
-
     try {
       arr = JSON.parse(match[0]);
-    } catch (e) {
-      console.log("JSONパース失敗 → fallback");
-      return news.slice(0, 3).map(t => "■" + t);
+    } catch {
+      return fallbackJP(news);
     }
 
-    /* ===== 空配列対策 ===== */
-    if (!Array.isArray(arr) || arr.length === 0) {
-      console.log("AI空配列 → fallback");
-      return news.slice(0, 3).map(t => "■" + t);
+    // 日本語チェック
+    const hasJP = s => /[ぁ-んァ-ン一-龯]/.test(s);
+
+    const valid = arr.filter(s => hasJP(s));
+
+    if (valid.length < 2) {
+      return fallbackJP(news);
     }
 
-    /* ===== 日本語チェック ===== */
-    const hasJP = (s) => /[ぁ-んァ-ン一-龯]/.test(s);
+    return valid.slice(0,3);
 
-    const cleaned = arr
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    /* 日本語じゃない場合 fallback */
-    if (!cleaned.some(hasJP)) {
-      console.log("日本語なし → fallback");
-      return news.slice(0, 3).map(t => "■" + t);
-    }
-
-    return cleaned.slice(0, 3);
-
-  } catch (e) {
-    console.log("APIエラー → fallback", e);
-    return news.slice(0, 3).map(t => "■" + t);
+  } catch {
+    return fallbackJP(news);
   }
 }
-function removeDuplicateThemes(news, original) {
-  const seen = new Set();
-  const result = [];
 
-  for (let t of news) {
-    let key = "other";
+/* ===== fallback（日本語強制） ===== */
+function fallbackJP(news) {
+  return news
+    .slice(0,5)
+    .map(t => simpleJP(t))
+    .filter(Boolean)
+    .slice(0,3);
+}
 
-    if (t.includes("イラン") || t.includes("戦争")) key = "war";
-    else if (t.includes("インフレ")) key = "inflation";
-    else if (t.includes("利上げ")) key = "rate";
+/* ===== 超簡易翻訳（最低限） ===== */
+function simpleJP(text) {
+  if (!text) return null;
 
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(t);
-    }
-  }
+  let t = text.toLowerCase();
 
-  // ★不足分を補充
-  let i = 0;
-  while (result.length < 3 && i < original.length) {
-    const fallback = "■" + original[i];
-    if (!result.includes(fallback)) {
-      result.push(fallback);
-    }
-    i++;
-  }
+  if (t.includes("oil") || t.includes("iran"))
+    return "■中東情勢で原油価格変動";
 
-  return result.slice(0,3);
+  if (t.includes("inflation"))
+    return "■インフレ動向が市場に影響";
+
+  if (t.includes("rate") || t.includes("fed"))
+    return "■金利政策への警戒";
+
+  return null; // 不明は捨てる
 }
 /* ===== 日経 ===== */
 async function getNikkei() {
