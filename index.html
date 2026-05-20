@@ -5,6 +5,7 @@
 <title>株イベント備忘録カレンダー</title>
 
 <style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 body{
   margin:0;
   font-family:sans-serif;
@@ -161,9 +162,16 @@ textarea{
 <body>
 
 <div class="header-bar">
+
   <button onclick="prev()">←</button>
+
   <div id="title"></div>
-  <button onclick="next()">→</button>
+
+  <div>
+    <button onclick="exportExcel()">Excel出力</button>
+    <button onclick="next()">→</button>
+  </div>
+
 </div>
 
 <div id="grid" class="grid"></div>
