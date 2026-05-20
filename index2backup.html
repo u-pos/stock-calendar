@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>株イベントカレンダー</title>
+
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+}
+
+/* ヘッダー */
+.header-bar {
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:#222;
+  color:#fff;
+}
+
+/* グリッド */
+.grid {
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  height:calc(100vh - 60px);
+}
+.news {
+  font-size:15px;
+  line-height:1.2;
+  overflow:hidden;
+}
+/* 曜日 */
+.header {
+  height:28px;
+  font-size:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:bold;
+}
+
+/* 曜日色 */
+.sun { background:#ffdddd; }
+.sat { background:#dde5ff; }
+.week { background:#eeeeee; }
+
+/* セル */
+.cell {
+  height:120px;
+  border:1px solid #ccc;
+  padding:4px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+/* 日付 */
+.date {
+  font-size:13px;
+  font-weight:bold;
+}
+
+/* 日経 */
+.nikkei {
+  font-size:16px;
+  font-weight:bold;
+}
+
+/* 上げ下げ */
+.up { color:green; }
+.down { color:red; }
+
+/* ニュース */
+ul {
+  margin:2px 0 0 0;
+  padding-left:14px;
+  font-size:11px;
+}
+
+li {
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header-bar">
+  <button onclick="prev()">←</button>
+  <div id="title"></div>
+  <button onclick="next()">→</button>
+</div>
+
+<div id="grid" class="grid"></div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
