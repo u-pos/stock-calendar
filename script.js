@@ -3,16 +3,14 @@ const title = document.getElementById("title");
 
 let current = new Date();
 
-/* キャッシュ */
-const cache = {};
-
 /* JST */
-function getJSTParts(date) {
+function getJSTParts(date){
   const jst = new Date(date.getTime() + 9*60*60*1000);
+
   return {
-    y: jst.getFullYear(),
-    m: jst.getMonth(),
-    d: jst.getDate()
+    y:jst.getFullYear(),
+    m:jst.getMonth(),
+    d:jst.getDate()
   };
 }
 
@@ -20,47 +18,42 @@ function formatDate(y,m,d){
   return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 }
 
-/* ★月単位で先読み（高速化） */
-async function preloadMonth(y, m){
-  const last = new Date(y, m+1, 0).getDate();
-  const promises = [];
+/* localStorage */
+function getMemo(dateStr){
+  return localStorage.getItem("memo_" + dateStr) || "";
+}
 
-  for(let d=1; d<=last; d++){
-    const dateStr = formatDate(y,m,d);
-
-    if(cache[dateStr]) continue;
-
-    promises.push(
-      fetch(`./data/${dateStr}.json`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => { if(data) cache[dateStr] = data; })
-        .catch(()=>{})
-    );
-  }
-
-  await Promise.all(promises);
+function saveMemo(dateStr, text){
+  localStorage.setItem("memo_" + dateStr, text);
 }
 
 /* 描画 */
-async function render() {
+function render(){
+
   grid.innerHTML = "";
 
-  const {y, m} = getJSTParts(current);
-  title.textContent = `${y}-${m+1}`;
+  const {y,m} = getJSTParts(current);
 
-  await preloadMonth(y, m);
+  title.textContent = `${y}年${m+1}月`;
 
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
   days.forEach((d,i)=>{
     const div = document.createElement("div");
-    div.className = "header " + (i==0?"sun":i==6?"sat":"week");
+
+    div.className =
+      "header " +
+      (i===0 ? "sun" :
+      i===6 ? "sat" :
+      "week");
+
     div.textContent = d;
+
     grid.appendChild(div);
   });
 
-  const first = new Date(y, m, 1).getDay();
-  const last = new Date(y, m+1, 0).getDate();
+  const first = new Date(y,m,1).getDay();
+  const last = new Date(y,m+1,0).getDate();
 
   for(let i=0;i<first;i++){
     grid.appendChild(document.createElement("div"));
@@ -68,47 +61,65 @@ async function render() {
 
   for(let d=1; d<=last; d++){
 
+    const dateStr = formatDate(y,m,d);
+
     const cell = document.createElement("div");
     cell.className = "cell";
 
-    const dateStr = formatDate(y,m,d);
-    const data = cache[dateStr];
+    const memo = getMemo(dateStr);
 
-    const dow = new Date(y,m,d).getDay();
-    const isWeekend = (dow === 0 || dow === 6);
+    cell.innerHTML = `
+      <div class="date">${d}</div>
 
-    cell.innerHTML = `<div class="date">${d}</div>`;
+      <div class="memo" id="memo-${dateStr}">
+        ${memo.replace(/\n/g,"<br>")}
+      </div>
 
-    if(data){
-
-      /* ★日経（平日のみ） */
-      if(data.nikkei && !isWeekend){
-        const up = data.nikkei.change_pct >= 0;
-
-        cell.innerHTML += `
-          <div class="nikkei ${up ? "up":"down"}">
-            ${data.nikkei.close}円(${up?"+":""}${data.nikkei.change_pct}%)
-          </div>
-        `;
-      }
-
-      /* ★ニュース（1行連結表示） */
-      if(data.news && data.news.length){
-
-        const text = data.news
-          .map(n => n.title)
-          .join("　"); // ←全角スペースで見やすく
-
-        cell.innerHTML += `
-          <div class="news" title="${text}">
-            ${text}
-          </div>
-        `;
-      }
-    }
+      <div class="actions">
+        <button onclick="editMemo('${dateStr}')">
+          編集
+        </button>
+      </div>
+    `;
 
     grid.appendChild(cell);
   }
+}
+
+/* 編集 */
+function editMemo(dateStr){
+
+  const memoDiv = document.getElementById("memo-" + dateStr);
+
+  const currentText =
+    localStorage.getItem("memo_" + dateStr) || "";
+
+  memoDiv.innerHTML = `
+    <textarea id="textarea-${dateStr}">${currentText}</textarea>
+
+    <div class="actions" style="margin-top:4px;">
+      <button onclick="saveMemoAndRender('${dateStr}')">
+        保存
+      </button>
+
+      <button onclick="render()">
+        キャンセル
+      </button>
+    </div>
+  `;
+}
+
+/* 保存 */
+function saveMemoAndRender(dateStr){
+
+  const textarea =
+    document.getElementById("textarea-" + dateStr);
+
+  const text = textarea.value;
+
+  saveMemo(dateStr, text);
+
+  render();
 }
 
 /* 月移動 */
@@ -126,3 +137,5 @@ render();
 
 window.prev = prev;
 window.next = next;
+window.editMemo = editMemo;
+window.saveMemoAndRender = saveMemoAndRender;
