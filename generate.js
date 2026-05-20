@@ -4,11 +4,12 @@ import fs from "fs";
 /* JST日時取得 */
 function getJSTNow() {
 
-  const now = new Date();
-
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(
+    new Date().toLocaleString("en-US", {
+      timeZone: "Asia/Tokyo"
+    })
+  );
 }
-
 /* YYYY-MM-DD */
 function getDateString(date) {
 
@@ -16,28 +17,26 @@ function getDateString(date) {
 }
 
 /* 平日判定 */
-function isWeekday(date) {
+/* JST平日判定 */
+function isWeekdayJST(date) {
 
-  const day = date.getUTCDay();
+  const day = date.getDay();
 
   return day >= 1 && day <= 5;
 }
 
-/* 15:40以降判定 */
-function isAfter1540(date) {
+/* JST 15:40以降判定 */
+function isAfter1540JST(date) {
 
-  const hour = date.getUTCHours();
-  const min = date.getUTCMinutes();
+  const hour = date.getHours();
 
-  /* JSTへ変換 */
-  const jstHour = (hour + 9) % 24;
+  const min = date.getMinutes();
 
   return (
-    jstHour > 15 ||
-    (jstHour === 15 && min >= 40)
+    hour > 15 ||
+    (hour === 15 && min >= 40)
   );
 }
-
 /* 日経取得 */
 async function getNikkei() {
 
@@ -64,7 +63,7 @@ async function main() {
   const now = getJSTNow();
 
   /* 土日スキップ */
-  if (!isWeekday(now)) {
+  if (!isWeekdayJST(now))
 
     console.log("土日はスキップ");
 
@@ -72,7 +71,7 @@ async function main() {
   }
 
   /* 15:40前ならスキップ */
-  if (!isAfter1540(now)) {
+  if (!isAfter1540JST(now))
 
     console.log("15:40前なのでスキップ");
 
