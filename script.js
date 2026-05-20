@@ -202,7 +202,12 @@ function saveMemoUI(date) {
 function prev() {
 
   current.setMonth(current.getMonth() - 1);
-  function exportExcel() {
+
+  render();
+}
+
+/* Excel出力 */
+function exportExcel() {
 
   const { y, m } = getJSTParts(current);
 
