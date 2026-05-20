@@ -3,186 +3,157 @@ const title = document.getElementById("title");
 
 let current = new Date();
 
-/* JST */
-function getJSTParts(date){
+/* キャッシュ */
+const cache = {};
 
-  const jst =
-    new Date(date.getTime() + 9*60*60*1000);
+/* ローカルメモ */
+const MEMO_KEY = "stock_calendar_memos";
+
+/* JST */
+function getJSTParts(date) {
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
 
   return {
-    y:jst.getFullYear(),
-    m:jst.getMonth(),
-    d:jst.getDate()
+    y: jst.getFullYear(),
+    m: jst.getMonth(),
+    d: jst.getDate()
   };
 }
 
-function formatDate(y,m,d){
-  return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+function formatDate(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-/* ===== 日経取得 ===== */
-async function getNikkei(){
-
-  try{
-
-    const res = await fetch(
-      "https://query1.finance.yahoo.com/v8/finance/chart/^N225"
-    );
-
-    const json = await res.json();
-
-    if(
-      !json.chart ||
-      !json.chart.result ||
-      !json.chart.result[0]
-    ){
-      return null;
-    }
-
-    const meta =
-      json.chart.result[0].meta;
-
-    const close =
-      Math.round(meta.regularMarketPrice);
-
-    const prev =
-      meta.previousClose;
-
-    const pct =
-      ((close - prev) / prev) * 100;
-
-    return {
-      close,
-      pct:Number(pct.toFixed(2))
-    };
-
-  }catch(e){
-
-    console.log("日経取得失敗", e);
-
-    return null;
+/* メモ取得 */
+function getMemos() {
+  try {
+    return JSON.parse(localStorage.getItem(MEMO_KEY) || "{}");
+  } catch {
+    return {};
   }
 }
 
-/* ===== localStorage ===== */
+/* メモ保存 */
+function saveMemo(date, text) {
+  const memos = getMemos();
+  memos[date] = text;
 
-function getMemo(dateStr){
-  return localStorage.getItem("memo_" + dateStr) || "";
+  localStorage.setItem(MEMO_KEY, JSON.stringify(memos));
 }
 
-function saveMemo(dateStr,text){
-  localStorage.setItem("memo_" + dateStr,text);
+/* 月単位先読み */
+async function preloadMonth(y, m) {
+
+  const last = new Date(y, m + 1, 0).getDate();
+
+  const promises = [];
+
+  for (let d = 1; d <= last; d++) {
+
+    const dateStr = formatDate(y, m, d);
+
+    if (cache[dateStr]) continue;
+
+    promises.push(
+      fetch(`./data/${dateStr}.json`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) cache[dateStr] = data;
+        })
+        .catch(() => {})
+    );
+  }
+
+  await Promise.all(promises);
 }
 
-/* ===== 描画 ===== */
-
-async function render(){
+/* 描画 */
+async function render() {
 
   grid.innerHTML = "";
 
-  const now =
-    getJSTParts(new Date());
+  const { y, m } = getJSTParts(current);
 
-  const currentParts =
-    getJSTParts(current);
+  title.textContent = `${y}-${m + 1}`;
 
-  const y = currentParts.y;
-  const m = currentParts.m;
+  await preloadMonth(y, m);
 
-  title.textContent =
-    `${y}年${m+1}月`;
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  const nikkei =
-    await getNikkei();
+  days.forEach((d, i) => {
 
-  const days =
-    ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-  /* 曜日 */
-  days.forEach((d,i)=>{
-
-    const div =
-      document.createElement("div");
+    const div = document.createElement("div");
 
     div.className =
       "header " +
-      (
-        i===0 ? "sun" :
-        i===6 ? "sat" :
-        "week"
-      );
+      (i == 0 ? "sun" : i == 6 ? "sat" : "week");
 
     div.textContent = d;
 
     grid.appendChild(div);
   });
 
-  /* 空白 */
-  const first =
-    new Date(y,m,1).getDay();
+  const first = new Date(y, m, 1).getDay();
+  const last = new Date(y, m + 1, 0).getDate();
 
-  const last =
-    new Date(y,m+1,0).getDate();
-
-  for(let i=0;i<first;i++){
-
-    grid.appendChild(
-      document.createElement("div")
-    );
+  for (let i = 0; i < first; i++) {
+    grid.appendChild(document.createElement("div"));
   }
 
-  /* 日付 */
-  for(let d=1; d<=last; d++){
+  const memos = getMemos();
 
-    const dateStr =
-      formatDate(y,m,d);
+  for (let d = 1; d <= last; d++) {
 
-    const memo =
-      getMemo(dateStr);
-
-    const cell =
-      document.createElement("div");
+    const cell = document.createElement("div");
 
     cell.className = "cell";
 
-    /* 今日だけ日経表示 */
-    let nikkeiHTML = "";
+    const dateStr = formatDate(y, m, d);
 
-    const isToday =
-      (
-        y === now.y &&
-        m === now.m &&
-        d === now.d
-      );
+    const data = cache[dateStr];
 
-    if(isToday && nikkei){
+    const dow = new Date(y, m, d).getDay();
 
-      const cls =
-        nikkei.pct >= 0
-        ? "up"
-        : "down";
+    const isWeekend = (dow === 0 || dow === 6);
 
-      nikkeiHTML = `
-        <div class="nikkei ${cls}">
-          日経 ${nikkei.close}円
-          (${nikkei.pct >=0 ? "+" : ""}${nikkei.pct}%)
+    const memoText = memos[dateStr] || "";
+
+    cell.innerHTML = `
+      <div class="date">${d}</div>
+    `;
+
+    /* 日経 */
+    if (data && data.nikkei && !isWeekend) {
+
+      const up = data.nikkei.change_pct >= 0;
+
+      cell.innerHTML += `
+        <div class="nikkei ${up ? "up" : "down"}">
+          ${data.nikkei.close}円(${up ? "+" : ""}${data.nikkei.change_pct}%)
         </div>
       `;
     }
 
-    cell.innerHTML = `
-      <div class="date">${d}</div>
+    /* メモUI */
+    cell.innerHTML += `
+      <div class="memo-wrap">
 
-      ${nikkeiHTML}
+        <textarea
+          class="memo-input"
+          id="memo-${dateStr}"
+          disabled
+        >${memoText}</textarea>
 
-      <div class="memo" id="memo-${dateStr}">
-        ${memo.replace(/\n/g,"<br>")}
-      </div>
+        <div class="memo-buttons">
+          <button onclick="editMemo('${dateStr}')">
+            編集
+          </button>
 
-      <div class="actions">
-        <button onclick="editMemo('${dateStr}')">
-          編集
-        </button>
+          <button onclick="saveMemoUI('${dateStr}')">
+            保存
+          </button>
+        </div>
+
       </div>
     `;
 
@@ -190,76 +161,44 @@ async function render(){
   }
 }
 
-/* ===== 編集 ===== */
+/* 編集 */
+function editMemo(date) {
 
-function editMemo(dateStr){
+  const el = document.getElementById(`memo-${date}`);
 
-  const memoDiv =
-    document.getElementById("memo-" + dateStr);
+  el.disabled = false;
 
-  const currentText =
-    getMemo(dateStr);
-
-  memoDiv.innerHTML = `
-    <textarea id="textarea-${dateStr}">${currentText}</textarea>
-
-    <div class="actions" style="margin-top:4px;">
-
-      <button onclick="saveMemoAndRender('${dateStr}')">
-        保存
-      </button>
-
-      <button onclick="render()">
-        キャンセル
-      </button>
-
-    </div>
-  `;
+  el.focus();
 }
 
-/* ===== 保存 ===== */
+/* 保存 */
+function saveMemoUI(date) {
 
-function saveMemoAndRender(dateStr){
+  const el = document.getElementById(`memo-${date}`);
 
-  const textarea =
-    document.getElementById(
-      "textarea-" + dateStr
-    );
+  saveMemo(date, el.value);
 
-  saveMemo(
-    dateStr,
-    textarea.value
-  );
+  el.disabled = true;
+}
+
+/* 月移動 */
+function prev() {
+
+  current.setMonth(current.getMonth() - 1);
 
   render();
 }
 
-/* ===== 月移動 ===== */
+function next() {
 
-function prev(){
-
-  current.setMonth(
-    current.getMonth()-1
-  );
+  current.setMonth(current.getMonth() + 1);
 
   render();
 }
 
-function next(){
-
-  current.setMonth(
-    current.getMonth()+1
-  );
-
-  render();
-}
-
-/* 初回描画 */
-render();
-
-/* グローバル化 */
 window.prev = prev;
 window.next = next;
 window.editMemo = editMemo;
-window.saveMemoAndRender =
-  saveMemoAndRender;
+window.saveMemoUI = saveMemoUI;
+
+render();
