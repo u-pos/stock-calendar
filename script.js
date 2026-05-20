@@ -118,9 +118,27 @@ async function render() {
 
     const memoText = memos[dateStr] || "";
 
-    cell.innerHTML = `
-      <div class="date">${d}</div>
-    `;
+    let percentText = "";
+
+if (data && data.nikkei && !isWeekend) {
+
+  const up = data.nikkei.change_pct >= 0;
+
+  percentText = `
+    <span class="${up ? "up" : "down"}">
+      (${up ? "+" : ""}${data.nikkei.change_pct}%)
+    </span>
+  `;
+}
+
+cell.innerHTML = `
+  <div class="date-row">
+    <div class="date">${d}</div>
+    <div class="mini-percent">
+      ${percentText}
+    </div>
+  </div>
+`;
 
     /* 日経 */
     if (data && data.nikkei && !isWeekend) {
