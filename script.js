@@ -199,9 +199,17 @@ function saveMemoUI(date) {
 }
 
 /* 月移動 */
+/* 月移動 */
 function prev() {
 
   current.setMonth(current.getMonth() - 1);
+
+  render();
+}
+
+function next() {
+
+  current.setMonth(current.getMonth() + 1);
 
   render();
 }
@@ -243,15 +251,6 @@ function exportExcel() {
     wb,
     `${y}-${String(m + 1).padStart(2, "0")}-stock-calendar.xlsx`
   );
-}
-  render();
-}
-
-function next() {
-
-  current.setMonth(current.getMonth() + 1);
-
-  render();
 }
 
 window.prev = prev;
