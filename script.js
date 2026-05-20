@@ -131,27 +131,26 @@ if (data && data.nikkei && !isWeekend) {
   `;
 }
 
+let nikkeiText = "";
+
+if (data && data.nikkei && !isWeekend) {
+
+  const up = data.nikkei.change_pct >= 0;
+
+  nikkeiText = `
+    <span class="nikkei-mini ${up ? "up" : "down"}">
+      ${data.nikkei.close}円
+      (${up ? "+" : ""}${data.nikkei.change_pct}%)
+    </span>
+  `;
+}
+
 cell.innerHTML = `
   <div class="date-row">
     <div class="date">${d}</div>
-    <div class="mini-percent">
-      ${percentText}
-    </div>
+    ${nikkeiText}
   </div>
 `;
-
-    /* 日経 */
-    if (data && data.nikkei && !isWeekend) {
-
-      const up = data.nikkei.change_pct >= 0;
-
-      cell.innerHTML += `
-        <div class="nikkei ${up ? "up" : "down"}">
-          ${data.nikkei.close}円(${up ? "+" : ""}${data.nikkei.change_pct}%)
-        </div>
-      `;
-    }
-
     /* メモUI */
     cell.innerHTML += `
       <div class="memo-wrap">
