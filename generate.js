@@ -1,7 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 
-/* JST日時取得 */
+/* JST現在時刻 */
 function getJSTNow() {
 
   return new Date(
@@ -10,23 +10,23 @@ function getJSTNow() {
     })
   );
 }
+
 /* YYYY-MM-DD */
-function getDateString(date) {
+function formatDate(date) {
 
   return date.toISOString().split("T")[0];
 }
 
 /* 平日判定 */
-/* JST平日判定 */
-function isWeekdayJST(date) {
+function isWeekday(date) {
 
   const day = date.getDay();
 
   return day >= 1 && day <= 5;
 }
 
-/* JST 15:40以降判定 */
-function isAfter1540JST(date) {
+/* 15:40以降 */
+function isAfter1540(date) {
 
   const hour = date.getHours();
 
@@ -37,6 +37,7 @@ function isAfter1540JST(date) {
     (hour === 15 && min >= 40)
   );
 }
+
 /* 日経取得 */
 async function getNikkei() {
 
@@ -47,6 +48,7 @@ async function getNikkei() {
   const meta = res.data.chart.result[0].meta;
 
   const close = meta.regularMarketPrice;
+
   const prev = meta.previousClose;
 
   const pct = ((close - prev) / prev) * 100;
@@ -63,7 +65,7 @@ async function main() {
   const now = getJSTNow();
 
   /* 土日スキップ */
-  if (!isWeekdayJST(now))
+  if (!isWeekday(now)) {
 
     console.log("土日はスキップ");
 
@@ -71,14 +73,14 @@ async function main() {
   }
 
   /* 15:40前ならスキップ */
-  if (!isAfter1540JST(now))
+  if (!isAfter1540(now)) {
 
     console.log("15:40前なのでスキップ");
 
     return;
   }
 
-  const date = getDateString(now);
+  const date = formatDate(now);
 
   const nikkei = await getNikkei();
 
@@ -87,7 +89,9 @@ async function main() {
     nikkei
   };
 
-  fs.mkdirSync("./data", { recursive: true });
+  fs.mkdirSync("./data", {
+    recursive: true
+  });
 
   fs.writeFileSync(
     `./data/${date}.json`,
@@ -97,4 +101,9 @@ async function main() {
   console.log("保存完了:", data);
 }
 
-main();
+main().catch(err => {
+
+  console.error(err);
+
+  process.exit(1);
+});
