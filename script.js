@@ -202,7 +202,43 @@ function saveMemoUI(date) {
 function prev() {
 
   current.setMonth(current.getMonth() - 1);
+  function exportExcel() {
 
+  const { y, m } = getJSTParts(current);
+
+  const last = new Date(y, m + 1, 0).getDate();
+
+  const memos = getMemos();
+
+  const rows = [];
+
+  for (let d = 1; d <= last; d++) {
+
+    const dateStr = formatDate(y, m, d);
+
+    const data = cache[dateStr];
+
+    rows.push({
+      日付: dateStr,
+      日経終値: data?.nikkei?.close ?? "",
+      前日比: data?.nikkei
+        ? `${data.nikkei.change_pct >= 0 ? "+" : ""}${data.nikkei.change_pct}%`
+        : "",
+      メモ: memos[dateStr] || ""
+    });
+  }
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(wb, ws, "calendar");
+
+  XLSX.writeFile(
+    wb,
+    `${y}-${String(m + 1).padStart(2, "0")}-stock-calendar.xlsx`
+  );
+}
   render();
 }
 
@@ -217,5 +253,6 @@ window.prev = prev;
 window.next = next;
 window.editMemo = editMemo;
 window.saveMemoUI = saveMemoUI;
+window.exportExcel = exportExcel;
 
 render();
