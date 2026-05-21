@@ -1,31 +1,39 @@
-name: update
+name: Update Nikkei Data
 
 on:
   schedule:
-    - cron: '30 6 * * 1-5'  # ← JST15:30
+    - cron: '45 6 * * 1-5'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  run:
+  update:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v3
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - run: npm install
+      - name: Install
+        run: npm install axios
 
-      - run: node generate.js
-        env:
-          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Run generate.js
+        run: node generate.js
 
-      - run: |
-          git config user.name "bot"
-          git config user.email "bot@example.com"
-          git add .
-          git commit -m "update" || echo "no change"
+      - name: Commit files
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add data/*.json
+
+          git diff --cached --quiet || git commit -m "update nikkei data"
+
           git push
