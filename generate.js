@@ -62,7 +62,7 @@ async function getNikkei() {
 async function main() {
 
   const now = getJSTNow();
-
+　console.log("JST:", now.toString());
   /* 土日スキップ */
   if (!isWeekday(now)) {
 
@@ -73,15 +73,21 @@ async function main() {
 
   /* 15:30前ならスキップ */
   if (!isAfter1530(now)) {
-
+  
     console.log("15:30前なのでスキップ");
-
+    console.log("現在時刻:", now.toString());
+  
     return;
   }
+
+
+  console.log("15:30以降なので取得開始");
 
   const date = formatDate(now);
 
   const nikkei = await getNikkei();
+
+  console.log("取得結果:", nikkei);
 
   const data = {
     date,
