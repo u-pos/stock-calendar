@@ -25,16 +25,15 @@ function isWeekday(date) {
   return day >= 1 && day <= 5;
 }
 
-/* 15:40以降 */
-function isAfter1540(date) {
+/* 15:30以降 */
+function isAfter1530(date) {
 
   const hour = date.getHours();
-
   const min = date.getMinutes();
 
   return (
     hour > 15 ||
-    (hour === 15 && min >= 40)
+    (hour === 15 && min >= 30)
   );
 }
 
@@ -72,10 +71,10 @@ async function main() {
     return;
   }
 
-  /* 15:40前ならスキップ */
-  if (!isAfter1540(now)) {
+  /* 15:30前ならスキップ */
+  if (!isAfter1530(now)) {
 
-    console.log("15:40前なのでスキップ");
+    console.log("15:30前なのでスキップ");
 
     return;
   }
